@@ -1,0 +1,16 @@
+{
+  "name": "ssun-arcade",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "build": "node build.mjs",
+    "test": "node --test engine.test.mjs",
+    "check": "node --check app.js && node --check engine.js && node --check scene.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
