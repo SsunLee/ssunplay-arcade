@@ -1,0 +1,86 @@
+{
+  "testedAt": "2026-10-24T14:55:55.060Z",
+  "baseUrl": "http://127.0.0.1:4173",
+  "execution": "desktop passed; mobile resumed in isolated context",
+  "checks": [
+    {
+      "check": "desktop-home",
+      "cards": 2
+    },
+    {
+      "check": "stage-3d",
+      "stage": 0,
+      "triangles": 26966
+    },
+    {
+      "check": "stage-3d",
+      "stage": 1,
+      "triangles": 37068
+    },
+    {
+      "check": "stage-3d",
+      "stage": 2,
+      "triangles": 31928
+    },
+    {
+      "check": "stage-3d",
+      "stage": 3,
+      "triangles": 42858
+    },
+    {
+      "check": "stage-3d",
+      "stage": 4,
+      "triangles": 24312
+    },
+    {
+      "check": "mouse-pull",
+      "percent": "50%"
+    },
+    {
+      "check": "pause-resume"
+    },
+    {
+      "check": "drive-stop-result",
+      "result": "23.43m"
+    },
+    {
+      "check": "retry"
+    },
+    {
+      "check": "mouse-curling-flick",
+      "phase": "roll"
+    },
+    {
+      "check": "curling-after-flick",
+      "phase": "ready",
+      "stage": "2번째 동료"
+    },
+    {
+      "check": "curling-keyboard",
+      "phase": "ready",
+      "stage": "2번째 동료"
+    },
+    {
+      "check": "records-export",
+      "version": 2
+    },
+    {
+      "check": "records-import"
+    },
+    {
+      "check": "invalid-import-rejected"
+    },
+    {
+      "check": "mobile-native-touch",
+      "width": 390,
+      "pull": "40%",
+      "phase": "run",
+      "horizontalOverflow": false
+    },
+    {
+      "check": "mobile-help"
+    }
+  ],
+  "pageErrors": [],
+  "status": "passed"
+}

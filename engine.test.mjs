@@ -1,19 +1,167 @@
-import {test} from 'node:test';import assert from 'node:assert/strict';
-import {Game,slide,curlingShot,curlingOutcome,raceScore,validRecords,STAGES,seededTarget} from './engine.js';
-const advance=(g,seconds)=>{for(let i=0;i<seconds*60;i++)g.update(1/60);};
-test('analytic friction: exact stopping distance independent of timestep',()=>{for(const dt of [1/30,1/60,1/120]){const b={x:0,z:0,vx:0,vz:6};for(let t=0;t<5;t+=dt)slide(b,dt,1.8);assert.ok(Math.abs(b.z-10)<1e-8);assert.equal(b.vz,0);}});
-test('first curling throw seats coworker; successful round advances',()=>{const g=new Game('curling');g.launch(0,84);advance(g,2.2);assert.equal(g.phase,'success');assert.equal(g.lastDistance,4);advance(g,1.5);assert.equal(g.phase,'ready');assert.equal(g.round,1);assert.equal(g.target.z,6);});
-test('underthrow, overthrow, wrong direction are distinct losses',()=>{for(const [dx,dy,reason]of [[0,10,'조금만'],[0,260,'너무'],[200,90,'방향']]){const g=new Game('curling');g.launch(dx,dy);advance(g,10);assert.equal(g.phase,'result');assert.ok(g.feedback.includes(reason));assert.equal(g.result.score,0);}});
-test('curling hit boundaries include exact 0.75m and 0.7m; exclude epsilon outside',()=>{assert.equal(curlingOutcome({x:.7,z:4.75},{x:0,z:4}).ok,true);assert.equal(curlingOutcome({x:.70001,z:4},{x:0,z:4}).ok,false);assert.equal(curlingOutcome({x:0,z:4.75001},{x:0,z:4}).ok,false);});
-test('aim cancellation does not launch zero/negative swipe',()=>{const g=new Game('curling');assert.equal(g.launch(0,0),false);assert.equal(g.launch(0,-40),false);assert.equal(g.phase,'ready');});
-test('pause freezes physics and restores prior state',()=>{const g=new Game('curling');g.launch(0,84);advance(g,.5);g.pause();const b={...g.body};advance(g,10);assert.deepEqual(g.body,b);g.resume();advance(g,3);assert.equal(g.lastDistance,4);});
-test('waiting timeout after first successful round ends challenge',()=>{const g=new Game('curling');g.launch(0,84);advance(g,20);assert.equal(g.phase,'result');assert.equal(g.result.value,4);assert.ok(g.feedback.includes('잠들'));});
-test('drive immediate brake safely stops on every surface',()=>{for(let stage=0;stage<STAGES.length;stage++){const g=new Game('drive',stage);g.launch(0,140);g.brake();advance(g,10);assert.equal(g.phase,'result');assert.equal(g.result.ok,true);assert.ok(g.remaining>0);}});
-test('drive without brake falls; retry fully resets state',()=>{const g=new Game('drive');g.launch(0,180);advance(g,5);assert.equal(g.result.ok,false);assert.equal(g.result.score,0);g.reset();assert.equal(g.phase,'ready');assert.equal(g.speed,0);assert.equal(g.remaining,42);assert.equal(g.result,null);});
-test('near edge braking uses real v^2/(2a) stop distance',()=>{const g=new Game('drive');g.launch(0,180);const v=g.speed,stop=v*v/(2*STAGES[0].friction);const coast=(42-.5-stop)/v;advance(g,coast);g.brake();advance(g,6);assert.equal(g.result.ok,true);assert.ok(g.remaining>=0&&g.remaining<1);assert.ok(g.result.score>9600);});
-test('scores are bounded, monotonic, and zero for a fall',()=>{assert.equal(raceScore(0),10000);assert.ok(raceScore(.1)>raceScore(1));assert.equal(raceScore(1000),0);assert.equal(raceScore(-.1),0);assert.equal(raceScore(.1,true),0);});
-test('backup schema rejects malformed, oversized and unsafe numeric data',()=>{const run={game:'drive',stage:'coast',value:1,score:9620,date:'2026-10-24T00:00:00Z',ok:true};assert.ok(validRecords({version:1,runs:[run]}));for(const bad of [null,{}, {version:2,runs:[]},{version:1,runs:[{...run,score:Infinity}]},{version:1,runs:[{...run,date:'bad'}]},{version:1,runs:[{...run,game:'<script>'}]},{version:1,runs:Array(501).fill(run)}])assert.equal(validRecords(bad),false);});
-test('subsequent targets remain achievable with bounded input',()=>{for(let round=0;round<20;round++){const target=seededTarget(round),speed=Math.sqrt(2*1.8*Math.hypot(target.x,target.z)),dy=speed/.045,dx=Math.atan2(target.x,target.z)/.0025;assert.ok(dy<280);const b=curlingShot(dx,dy);for(let t=0;t<10;t+=1/60)slide(b,1/60,1.8);assert.equal(curlingOutcome(b,target).ok,true);}});
-test('result cannot double-complete or change after it finishes',()=>{const g=new Game('drive');g.launch(0,140);g.brake();advance(g,8);const result={...g.result};g.finish(false,'bad');advance(g,5);assert.deepEqual(g.result,result);assert.equal(g.launch(0,140),false);});
-
-test('20th coworker clears challenge without requiring unreachable 44m target',()=>{const g=new Game('curling');g.round=19;g.target=seededTarget(19);const speed=Math.sqrt(3.6*Math.hypot(g.target.x,g.target.z));g.launch(Math.atan2(g.target.x,g.target.z)/.0025,speed/.045);advance(g,10);assert.equal(g.phase,'result');assert.equal(g.result.ok,true);assert.equal(g.result.value,42);});
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import {
+  DriveGame,
+  CurlingGame,
+  STAGES,
+  VEHICLES,
+  SURFACES,
+  CURL_DISTANCES,
+  makeCar,
+  makeRoad,
+  launchCar,
+  stepCar,
+  frontOf,
+  flickVelocity,
+} from "./engine.js";
+const advance = (g, seconds) => {
+  for (let i = 0; i < seconds * 120 && g.phase !== "result"; i++)
+    g.update(1 / 120);
+};
+test("all five vehicles and road surfaces reach a stable result", () => {
+  for (let s = 0; s < 5; s++) {
+    const g = new DriveGame(s);
+    g.setPull(0.2);
+    assert.ok(g.launch());
+    advance(g, 35);
+    assert.equal(g.phase, "result");
+    assert.equal(g.result.fell, false);
+    assert.ok(Number.isFinite(g.result.gap));
+  }
+});
+test("long pull tips the car over the edge and produces a fall result", () => {
+  const g = new DriveGame(0);
+  g.setPull(0.8);
+  g.launch();
+  advance(g, 40);
+  assert.equal(g.phase, "result");
+  assert.equal(g.result.fell, true);
+  assert.ok(g.splash);
+});
+test("input threshold, locked pull during driving and pause/resume", () => {
+  const g = new DriveGame();
+  assert.equal(g.launch(0.02), false);
+  g.setPull(0.55);
+  assert.ok(g.launch());
+  g.setPull(0.1);
+  assert.equal(g.pull, 0.55);
+  g.update(0.1);
+  g.pause();
+  const x = g.car.x;
+  advance(g, 3);
+  assert.equal(g.car.x, x);
+  g.resume();
+  assert.equal(g.phase, "run");
+  advance(g, 2);
+  assert.ok(g.car.x > x);
+});
+test("rigidbody can overhang without a false fall result", () => {
+  let found = false;
+  for (let p = 0.61; p < 0.64; p += 0.001) {
+    const g = new DriveGame();
+    g.launch(p);
+    advance(g, 35);
+    if (!g.result.fell && g.result.gap < 0) {
+      found = true;
+      break;
+    }
+  }
+  assert.ok(found);
+});
+test("curling waits while idle, rejects slow release and preserves pause", () => {
+  const g = new CurlingGame(42);
+  advance(g, 20);
+  assert.equal(g.man.mode, "stand");
+  assert.equal(g.release(0, -0.4), false);
+  assert.equal(g.phase, "ready");
+  g.release(0, -3.4);
+  g.pause();
+  const z = g.chair.z;
+  advance(g, 2);
+  assert.equal(g.chair.z, z);
+  g.resume();
+  assert.equal(g.phase, "roll");
+});
+test("a controlled knee catch seats the person and advances to 3m", () => {
+  const g = new CurlingGame(42);
+  g.man.x = 0;
+  g.man.yaw = 0;
+  g.release(0, -3.4);
+  let sat = false;
+  for (let i = 0; i < 1200 && g.stage === 0; i++) {
+    g.update(1 / 120);
+    sat ||= g.man.mode === "sit";
+  }
+  assert.ok(sat);
+  assert.equal(g.stage, 1);
+  assert.equal(g.distance, 3);
+  assert.equal(g.bestDistance, 2);
+});
+test("overspeed impact and a short miss both end as ragdoll failures", () => {
+  for (const v of [1.4, 10]) {
+    const g = new CurlingGame(42);
+    g.man.x = 0;
+    g.man.yaw = 0;
+    g.release(0, -v);
+    advance(g, 20);
+    assert.equal(g.phase, "result");
+    assert.equal(g.result.ok, false);
+    assert.ok(g.points.every((p) => p.every(Number.isFinite)));
+    assert.ok(g.points.every((p) => p[1] >= 0.05));
+  }
+});
+test("recent flick uses speed, direction and stale release rejection", () => {
+  const a = [
+    { t: 0, x: 100, y: 300, fx: 0, fz: 0 },
+    { t: 50, x: 100, y: 250, fx: 0, fz: -0.5 },
+  ];
+  assert.ok(
+    Math.abs(flickVelocity(a, 700, 51).speed - (50 / 0.05 / 700) * 2.6) < 1e-10,
+  );
+  assert.equal(flickVelocity(a, 700, 121), null);
+  assert.equal(flickVelocity([a[0]], 700, 1), null);
+});
+test("chair wall bounces and there is no invented 20-person progression cap", () => {
+  const g = new CurlingGame(42);
+  g.chair.x = 2.54;
+  g.release(5, -1);
+  g.update(0.1);
+  assert.ok(g.chair.vx < 0);
+  assert.ok(CURL_DISTANCES.includes(100));
+  assert.equal(CURL_DISTANCES[10], 21);
+});
+if (fs.existsSync("drive-reference-cases.json")) {
+  const refs = JSON.parse(fs.readFileSync("drive-reference-cases.json"));
+  test("differential: 50 original-source reference cases", () => {
+    assert.equal(refs.length, 50);
+    for (const r of refs) {
+      const st = STAGES[r.stage],
+        road = makeRoad(st),
+        c = makeCar(VEHICLES[st.vehicle], -4 * r.p);
+      launchCar(c, r.p, st.power);
+      let rest = 0,
+        fell = false;
+      for (let t = 0; t < 30; t += 1 / 120) {
+        stepCar(c, road, SURFACES[st.surface], 1 / 120);
+        if (c.y < road.top - 2.5) {
+          fell = true;
+          break;
+        }
+        rest =
+          Math.hypot(c.vx, c.vy) < 0.04 &&
+          Math.abs(c.omega) < 0.04 &&
+          c.stroke <= 0
+            ? rest + 1 / 120
+            : 0;
+        if (rest > 0.4) break;
+      }
+      assert.equal(fell, r.fell, `stage ${r.stage} p=${r.p}`);
+      if (!fell)
+        assert.ok(
+          Math.abs(road.edge - frontOf(c) - r.remaining) < 1e-8,
+          `stage ${r.stage} p=${r.p}`,
+        );
+    }
+  });
+}

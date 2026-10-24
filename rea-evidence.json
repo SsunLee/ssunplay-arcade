@@ -1,0 +1,497 @@
+{
+  "tool": "rea-agents",
+  "version": "6.7.0",
+  "mode": "dedicated Chromium CDP, allowed origins only",
+  "items": [
+    {
+      "file": "rea-curling-capture.json",
+      "evidence_id": "ev_8ab607cef9e8f92d78a50f3435f387397b3052ec2c19100163bf7979b1b7541d",
+      "sha256": "b8bf79333b0223fc50fe6e8f44cc8902153842b1ed96a7a5ea6d7cadf9380684",
+      "resultKeys": [
+        "browser",
+        "target",
+        "capture_window",
+        "completeness",
+        "frames",
+        "dom",
+        "accessibility",
+        "scripts",
+        "resources",
+        "network",
+        "console",
+        "workers",
+        "metadata",
+        "storage",
+        "limitations"
+      ],
+      "completeness": {
+        "status": "policy_filtered",
+        "conditions": [
+          "attach_limited",
+          "policy_filtered"
+        ],
+        "policy_filtered_sections": [
+          "console_text",
+          "json_body_shapes",
+          "metadata",
+          "network_requests",
+          "resources",
+          "scripts",
+          "websocket_shapes"
+        ],
+        "attach_limited_sections": [
+          "console_events",
+          "metadata",
+          "network_requests",
+          "websocket_connections",
+          "websocket_frames"
+        ],
+        "truncated_sections": [],
+        "unavailable_sections": [],
+        "excluded": [
+          {
+            "section": "console_text",
+            "reason": "not_approved",
+            "count": null
+          },
+          {
+            "section": "json_body_shapes",
+            "reason": "not_approved",
+            "count": null
+          },
+          {
+            "section": "metadata",
+            "reason": "disallowed_origin",
+            "count": 8
+          },
+          {
+            "section": "network_requests",
+            "reason": "disallowed_origin",
+            "count": 1
+          },
+          {
+            "section": "resources",
+            "reason": "disallowed_origin",
+            "count": 4
+          },
+          {
+            "section": "scripts",
+            "reason": "disallowed_origin",
+            "count": 2
+          },
+          {
+            "section": "scripts",
+            "reason": "unattributed_origin",
+            "count": 7
+          },
+          {
+            "section": "websocket_shapes",
+            "reason": "not_approved",
+            "count": null
+          }
+        ],
+        "dropped_events": {
+          "scripts": 0,
+          "network_requests": 0,
+          "console_events": 0,
+          "websocket_connections": 0,
+          "websocket_frames": 0,
+          "webmcp_tools": 0,
+          "timeline_events": 0,
+          "total": 0
+        }
+      },
+      "limitations": [
+        "Artifact identity is unavailable for this observation.",
+        "Observation starts when REA attaches; prior network and console activity is unavailable.",
+        "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; explicitly requested primitive console text is retained verbatim, while payload captures retain value-free shapes.",
+        "Source maps are reported only as declarative URLs and are not fetched.",
+        "URL-less scripts and console events without an allowed source URL are excluded because their origin cannot be proven.",
+        "CDP discovery omitted the target attachment state; attached is reported as unknown.",
+        "Browser host platform and architecture were not observed."
+      ],
+      "frames": [
+        {
+          "url": "https://hedorobomb.com/game/isu-curling/",
+          "origin": "https://hedorobomb.com"
+        },
+        {
+          "url": "https://games.hedorobomb.com/isu-curling/",
+          "origin": "https://games.hedorobomb.com"
+        },
+        {
+          "url": "https://games.hedorobomb.com/_sync/",
+          "origin": "https://games.hedorobomb.com"
+        }
+      ],
+      "scriptCount": 12,
+      "scripts": [
+        {
+          "script_key": "scr_0fdd8523bde4cb025fc37add0d9772e04c3e74f5195b1b305767d58b670fb820",
+          "url": "https://hedorobomb.com/i18n.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "926e63aacf4f3a308b7b4724785fc41afc129dac1555aee2682603790d23917d",
+          "length": 13113,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_445c03a3796482e9d211f8e60e9232424103a782d25893f08704c80740f176f5",
+          "url": "https://hedorobomb.com/app.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "9ea957b87e4f41a321d4b5b8f91684aee8c26ad43b8f8bafa766194aea2d6a5d",
+          "length": 21223,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_4df6adda87a7d03b7e5411a717f3d60033ffba9ab14e8235ad9c4e1d48f0b3a3",
+          "url": "https://hedorobomb.com/analytics.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "3fc13c3f12b8e7c0da3da7976e9850b645f82ed2e5b7e1501f1bb626e446ccf9",
+          "length": 5790,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_51370dd17692a80fb63d87c588ee1987099f8cb1b24fb29815e7a929cf6cb0a6",
+          "url": "https://hedorobomb.com/lang-menu.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "dbda728985fb7a426be45d5fb9c0839a13f0adc32d59401e7b2d76c28ccf63a9",
+          "length": 277,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_66f0bd1e063b6eaf9dbed7ca47ebc5aea7c27a21e9794cdc1bc0e2c9e62621f7",
+          "url": "https://games.hedorobomb.com/_sync/sync.js",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "0b610ad347a79076ab40c2e3136d7861fea17b9d36dfa56783fa5e623e1e9267",
+          "length": 6664,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_80e92e7484c3bec472f85b9ab392126ccd9707616d3c3cf054731e89b5e1e8c1",
+          "url": "https://games.hedorobomb.com/isu-curling/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "dd26c2269f7c49843fdf8bdcf7217b24f8416aaa7aa0c88226e88a958a946ae1",
+          "length": 1525,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_8bcfbf5c218e1cdfebb8df10e2c069b8973b16f97c80e7e9965ca6cb8a0759fe",
+          "url": "https://hedorobomb.com/updates-view.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "6f8397ef895fc11064dec856edf2638ef3c0623a76b0661a5af9b3764a426929",
+          "length": 2368,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_d8d589d0b3cbdf853ca46abf4645a8f8b50c68347acc3a191173285ede54286a",
+          "url": "https://games.hedorobomb.com/_sync/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "b57852260685ecb5e9dce8ad62ab99fe9aece0dd94c7b115090a8e4bb285cb39",
+          "length": 2329,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_dbd3c391423cca4b22f7823a8edb78d71de2b4f1ef8d3db6facf0930d89c16bc",
+          "url": "https://games.hedorobomb.com/isu-curling/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "314580e00a0e984740b59e92ac5558d8c21458c7fbedb9e4db06a9b90232d900",
+          "length": 1001399,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_e6ccf2fd0777ece96b1e5a07525537b1f371790adf7ea8dfb40e55a88a52d6bf",
+          "url": "https://games.hedorobomb.com/isu-curling/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "667765d256154744cdb74bd601a10c529528dbe0511897695e354d4121f6d26e",
+          "length": 5482,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_ee009049cb413bdbb290c8f77d9573443b02e06f4b758b7c215a93639529993c",
+          "url": "https://hedorobomb.com/public-catalog.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "4ae04deb0eccaeed806b0ea2d081c9f53e839d82cd8519d19c1fd6f90dad9b54",
+          "length": 3285,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_fab356277093f24a528ce407f182974b82b4f6cff65b686d1e2715a7afc00e5f",
+          "url": "https://games.hedorobomb.com/isu-curling/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "8fae58613a7f7dd252c1367faa47aa0657acfb67eae89001f00f42c4387e6447",
+          "length": 13930,
+          "sourceIncluded": true
+        }
+      ]
+    },
+    {
+      "file": "rea-curling-bundle.json",
+      "evidence_id": "ev_e8af3f01b2c262bb27b89ff6fd938030b9bae0d9fbd813ba061526f5822a0310",
+      "sha256": "555cbf804e17f21ded8de8276af838ce0604f293ee96867a5e93a5b30c5e60e4",
+      "resultKeys": [
+        "capture",
+        "observations",
+        "inferences",
+        "unknowns",
+        "completeness",
+        "limitations"
+      ],
+      "completeness": {
+        "status": "complete",
+        "parsed_scripts": 12,
+        "parse_failures": 0,
+        "visited_ast_nodes": 152193
+      },
+      "limitations": [
+        "Artifact identity is unavailable for this observation.",
+        "Static bundle findings are observations or bounded inferences; REA does not execute captured JavaScript.",
+        "Bare string arguments of unbound HTTP-method-named calls are low-confidence endpoint candidates; form, translation, storage and other APIs can use the same syntax. URL-shaped findings still do not prove network execution.",
+        "Endpoint candidates are deduplicated by script, value and detector; basis retains only the first matching source coordinate. They are not a complete call-site inventory or a runtime occurrence count. completeness.status=\"complete\" describes examination of captured source, not a call-site census.",
+        "String-built routes and endpoints, encrypted configuration, and server-side behavior may remain unknown.",
+        "Page-declared WebMCP metadata is untrusted and is never registered or invoked as an REA tool."
+      ]
+    },
+    {
+      "file": "rea-drive-capture.json",
+      "evidence_id": "ev_49b34ef0927e7c12677999ce4787c18f0b3d13c238ddf7bc29c8fa90b6123055",
+      "sha256": "b646396b44e80f62d568b571f3132cf866a5441fe81725c7d60b13151fba3293",
+      "resultKeys": [
+        "browser",
+        "target",
+        "capture_window",
+        "completeness",
+        "frames",
+        "dom",
+        "accessibility",
+        "scripts",
+        "resources",
+        "network",
+        "console",
+        "workers",
+        "metadata",
+        "storage",
+        "limitations"
+      ],
+      "completeness": {
+        "status": "policy_filtered",
+        "conditions": [
+          "attach_limited",
+          "policy_filtered"
+        ],
+        "policy_filtered_sections": [
+          "console_text",
+          "json_body_shapes",
+          "metadata",
+          "resources",
+          "scripts",
+          "websocket_shapes"
+        ],
+        "attach_limited_sections": [
+          "console_events",
+          "metadata",
+          "network_requests",
+          "websocket_connections",
+          "websocket_frames"
+        ],
+        "truncated_sections": [],
+        "unavailable_sections": [],
+        "excluded": [
+          {
+            "section": "console_text",
+            "reason": "not_approved",
+            "count": null
+          },
+          {
+            "section": "json_body_shapes",
+            "reason": "not_approved",
+            "count": null
+          },
+          {
+            "section": "metadata",
+            "reason": "disallowed_origin",
+            "count": 9
+          },
+          {
+            "section": "resources",
+            "reason": "disallowed_origin",
+            "count": 5
+          },
+          {
+            "section": "scripts",
+            "reason": "disallowed_origin",
+            "count": 2
+          },
+          {
+            "section": "scripts",
+            "reason": "unattributed_origin",
+            "count": 7
+          },
+          {
+            "section": "websocket_shapes",
+            "reason": "not_approved",
+            "count": null
+          }
+        ],
+        "dropped_events": {
+          "scripts": 0,
+          "network_requests": 0,
+          "console_events": 0,
+          "websocket_connections": 0,
+          "websocket_frames": 0,
+          "webmcp_tools": 0,
+          "timeline_events": 0,
+          "total": 0
+        }
+      },
+      "limitations": [
+        "Artifact identity is unavailable for this observation.",
+        "Observation starts when REA attaches; prior network and console activity is unavailable.",
+        "Raw network headers, bodies, cookies, storage values, console objects, and WebSocket payloads are never retained; explicitly requested primitive console text is retained verbatim, while payload captures retain value-free shapes.",
+        "Source maps are reported only as declarative URLs and are not fetched.",
+        "URL-less scripts and console events without an allowed source URL are excluded because their origin cannot be proven.",
+        "CDP discovery omitted the target attachment state; attached is reported as unknown.",
+        "Browser host platform and architecture were not observed."
+      ],
+      "frames": [
+        {
+          "url": "https://hedorobomb.com/game/chicken-race/",
+          "origin": "https://hedorobomb.com"
+        },
+        {
+          "url": "https://games.hedorobomb.com/chicken-race/",
+          "origin": "https://games.hedorobomb.com"
+        },
+        {
+          "url": "https://games.hedorobomb.com/_sync/",
+          "origin": "https://games.hedorobomb.com"
+        }
+      ],
+      "scriptCount": 12,
+      "scripts": [
+        {
+          "script_key": "scr_0fdd8523bde4cb025fc37add0d9772e04c3e74f5195b1b305767d58b670fb820",
+          "url": "https://hedorobomb.com/i18n.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "926e63aacf4f3a308b7b4724785fc41afc129dac1555aee2682603790d23917d",
+          "length": 13113,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_445c03a3796482e9d211f8e60e9232424103a782d25893f08704c80740f176f5",
+          "url": "https://hedorobomb.com/app.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "9ea957b87e4f41a321d4b5b8f91684aee8c26ad43b8f8bafa766194aea2d6a5d",
+          "length": 21223,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_44922e8258d2a0f0c001ebfb7d496c6eef4209894f07b940c20e5ce3a16b02ba",
+          "url": "https://games.hedorobomb.com/chicken-race/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "0328fdec3a9213bee22fa0393fbc77111cff5a37076adcb93a432e7c0a6832f6",
+          "length": 8909,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_4b5cbf5e0d009b2facda9b953fcdbffdc07d84e51c399b71949af328788ba896",
+          "url": "https://games.hedorobomb.com/chicken-race/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "19b7169b846c9ed9cf9989eea25686d073c7ce044d77ad4721388e19e0cfaf80",
+          "length": 5492,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_4df6adda87a7d03b7e5411a717f3d60033ffba9ab14e8235ad9c4e1d48f0b3a3",
+          "url": "https://hedorobomb.com/analytics.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "3fc13c3f12b8e7c0da3da7976e9850b645f82ed2e5b7e1501f1bb626e446ccf9",
+          "length": 5790,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_51370dd17692a80fb63d87c588ee1987099f8cb1b24fb29815e7a929cf6cb0a6",
+          "url": "https://hedorobomb.com/lang-menu.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "dbda728985fb7a426be45d5fb9c0839a13f0adc32d59401e7b2d76c28ccf63a9",
+          "length": 277,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_66f0bd1e063b6eaf9dbed7ca47ebc5aea7c27a21e9794cdc1bc0e2c9e62621f7",
+          "url": "https://games.hedorobomb.com/_sync/sync.js",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "0b610ad347a79076ab40c2e3136d7861fea17b9d36dfa56783fa5e623e1e9267",
+          "length": 6664,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_8791fe3901a1700467e76bcc761a0265d8586545fa0305e0290ddacd6cb3f9af",
+          "url": "https://games.hedorobomb.com/chicken-race/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "ed2b700081cf83e06d456059b86beaf72fec98f6b0667c17f0e594eed4e75d61",
+          "length": 1526,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_8bcfbf5c218e1cdfebb8df10e2c069b8973b16f97c80e7e9965ca6cb8a0759fe",
+          "url": "https://hedorobomb.com/updates-view.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "6f8397ef895fc11064dec856edf2638ef3c0623a76b0661a5af9b3764a426929",
+          "length": 2368,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_a8e99710914838d62d2d8921324896601efdeeb9dd58c3a155b9a57b6d127c6e",
+          "url": "https://games.hedorobomb.com/chicken-race/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "19f6bbd19fda5b7f585c04877a522441f2c3391b2714b713d89c50bc210b3020",
+          "length": 988481,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_d8d589d0b3cbdf853ca46abf4645a8f8b50c68347acc3a191173285ede54286a",
+          "url": "https://games.hedorobomb.com/_sync/",
+          "origin": "https://games.hedorobomb.com",
+          "cdp_hash": "b57852260685ecb5e9dce8ad62ab99fe9aece0dd94c7b115090a8e4bb285cb39",
+          "length": 2329,
+          "sourceIncluded": true
+        },
+        {
+          "script_key": "scr_ee009049cb413bdbb290c8f77d9573443b02e06f4b758b7c215a93639529993c",
+          "url": "https://hedorobomb.com/public-catalog.js",
+          "origin": "https://hedorobomb.com",
+          "cdp_hash": "4ae04deb0eccaeed806b0ea2d081c9f53e839d82cd8519d19c1fd6f90dad9b54",
+          "length": 3285,
+          "sourceIncluded": true
+        }
+      ]
+    },
+    {
+      "file": "rea-drive-bundle.json",
+      "evidence_id": "ev_39db862f67467990b9b2e94aac3047b661fad04fd3cd239fdb33f835cfb9ddf1",
+      "sha256": "170dadfa9295f8c0530268b6463dcdb31a9a7efd97788388b9151a5c3ce4d34d",
+      "resultKeys": [
+        "capture",
+        "observations",
+        "inferences",
+        "unknowns",
+        "completeness",
+        "limitations"
+      ],
+      "completeness": {
+        "status": "complete",
+        "parsed_scripts": 12,
+        "parse_failures": 0,
+        "visited_ast_nodes": 148673
+      },
+      "limitations": [
+        "Artifact identity is unavailable for this observation.",
+        "Static bundle findings are observations or bounded inferences; REA does not execute captured JavaScript.",
+        "Bare string arguments of unbound HTTP-method-named calls are low-confidence endpoint candidates; form, translation, storage and other APIs can use the same syntax. URL-shaped findings still do not prove network execution.",
+        "Endpoint candidates are deduplicated by script, value and detector; basis retains only the first matching source coordinate. They are not a complete call-site inventory or a runtime occurrence count. completeness.status=\"complete\" describes examination of captured source, not a call-site census.",
+        "String-built routes and endpoints, encrypted configuration, and server-side behavior may remain unknown.",
+        "Page-declared WebMCP metadata is untrusted and is never registered or invoked as an REA tool."
+      ]
+    }
+  ]
+}

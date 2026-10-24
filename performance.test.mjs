@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{DriveGame}from'./engine.js';test('low frame rate keeps the same stable stop distance',()=>{const run=dt=>{const g=new DriveGame();g.launch(.5);for(let t=0;t<35&&g.phase!=='result';t+=dt)g.update(dt);assert.equal(g.phase,'result');return g.gap;};assert.ok(Math.abs(run(1/60)-run(.25))<.001);});
