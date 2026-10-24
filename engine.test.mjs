@@ -69,9 +69,9 @@ test("rigidbody can overhang without a false fall result", () => {
   }
   assert.ok(found);
 });
-test("curling waits while idle, rejects slow release and preserves pause", () => {
+test("curling brief preparation, slow release rejection and pause", () => {
   const g = new CurlingGame(42);
-  advance(g, 20);
+  advance(g, 1);
   assert.equal(g.man.mode, "stand");
   assert.equal(g.release(0, -0.4), false);
   assert.equal(g.phase, "ready");

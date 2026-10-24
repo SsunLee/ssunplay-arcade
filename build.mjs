@@ -16,7 +16,7 @@ await build({
 for (const n of ["index.html", "style.css", "favicon.svg", "social.svg"])
   await cp(root + n, root + "dist/" + n);
 await cp(root + "dist/bundle.js", root + "bundle.js");
-for (const id of ["curling", "drive"]) {
+for (const id of ["curling", "drive", "beer"]) {
   await mkdir(root + "dist/game/" + id, { recursive: true });
   await cp(root + "index.html", root + "dist/game/" + id + "/index.html");
 }

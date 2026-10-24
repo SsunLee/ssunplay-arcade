@@ -1170,3 +1170,316 @@ dialog a {
     transition: none !important;
   }
 }
+
+/* Three games and taproom */
+.game-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.card-copy h2 {
+  font-size: 26px;
+}
+.card-visual {
+  height: 265px;
+}
+.beer-card {
+  background: #203634;
+}
+.beer .hud-left {
+  filter: drop-shadow(0 2px 2px #071c17);
+}
+.beer .controls {
+  pointer-events: auto;
+}
+.beer-order {
+  position: absolute;
+  left: 28px;
+  top: 145px;
+  width: 270px;
+  padding: 17px 20px 15px;
+  background: #fff9e9f2;
+  border: 1px solid #f6e7b580;
+  border-radius: 11px;
+  box-shadow: 0 7px 28px #071e1729;
+  color: #29473a;
+  pointer-events: none;
+}
+.beer-order > span {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #9a865a;
+  margin-bottom: 7px;
+}
+.beer-order strong {
+  font-size: 17px;
+  letter-spacing: -0.5px;
+}
+.beer-order p {
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 8px 0 12px;
+  color: #71806a;
+}
+.order-recipe {
+  height: 11px;
+  display: flex;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid #d9cda6;
+}
+.order-recipe i:first-child {
+  background: #dca327;
+}
+.order-recipe i:last-child {
+  background: #fff7de;
+}
+.recipe-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  margin-top: 5px;
+  color: #9d906c;
+}
+.beer-intro {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  width: max-content;
+  max-width: 95%;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  color: #fff6d9;
+  text-shadow: 0 2px 5px #122e25;
+}
+.beer-intro > span {
+  font-size: 10px;
+  letter-spacing: 0.23em;
+  font-weight: 700;
+}
+.beer-intro h1 {
+  font-size: clamp(36px, 5vw, 63px);
+  margin: 9px 0 8px;
+  letter-spacing: -2px;
+  -webkit-text-stroke: 3px #223d33;
+  paint-order: stroke fill;
+}
+.beer-intro p {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+.beer-actions {
+  position: absolute;
+  bottom: 53px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 350px;
+  max-width: calc(100% - 36px);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+.tilt-actions {
+  grid-column: 1/-1;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.tilt-actions button {
+  border: 1px solid #f8edcd70;
+  background: #213e34e6;
+  color: #fff1cf;
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 10px;
+  font-weight: 700;
+  touch-action: manipulation;
+}
+.beer-pour,
+.beer-serve {
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+  padding: 14px 10px;
+  box-shadow: 0 5px 18px #152a1c35;
+}
+.beer-pour {
+  background: #efd77a;
+  color: #293c27;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.beer-pour.held {
+  background: #f8bc42;
+  transform: translateY(2px);
+  box-shadow: 0 2px 5px #152a1c35;
+}
+.beer-serve {
+  background: #f6f2df;
+  color: #315541;
+}
+.beer-pour:disabled,
+.beer-serve:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.beer-actions > span {
+  grid-column: 1/-1;
+  text-align: center;
+  color: #f7ebc4c9;
+  font-size: 9px;
+  text-shadow: 0 1px 3px #112e26;
+}
+.beer .game-status {
+  top: 12%;
+  background: #7e4720e6;
+}
+.beer .bottom-bar {
+  background: linear-gradient(transparent, #142d26b3);
+}
+.beer-score-list {
+  display: flex;
+  gap: 12px;
+  margin: 15px 0 22px;
+}
+.beer-score-list span {
+  flex: 1;
+  background: #efefdf;
+  padding: 12px 5px;
+  border-radius: 7px;
+  font-size: 10px;
+  color: #869177;
+}
+.beer-score-list b {
+  display: block;
+  font-size: 18px;
+  color: #36543c;
+  margin-top: 7px;
+}
+@media (max-width: 1050px) and (min-width: 701px) {
+  .game-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .beer-order {
+    width: 230px;
+    top: 142px;
+  }
+  .beer-intro {
+    left: 62%;
+    top: 26%;
+  }
+  .beer-intro h1 {
+    font-size: 43px;
+  }
+}
+@media (max-width: 700px) {
+  .game-grid {
+    grid-template-columns: 1fr;
+  }
+  .card-visual {
+    height: 260px;
+  }
+  .beer-order {
+    left: 16px;
+    top: 112px;
+    width: 218px;
+    padding: 12px 15px;
+  }
+  .beer-order > span {
+    font-size: 8px;
+  }
+  .beer-order strong {
+    font-size: 14px;
+  }
+  .beer-order p {
+    font-size: 10px;
+    margin: 6px 0 8px;
+  }
+  .order-recipe {
+    height: 8px;
+  }
+  .beer-intro {
+    top: 37%;
+    left: 50%;
+  }
+  .beer-intro h1 {
+    font-size: 37px;
+    letter-spacing: -1.5px;
+  }
+  .beer-intro > span {
+    font-size: 8px;
+  }
+  .beer-intro p {
+    font-size: 12px;
+  }
+  .beer-actions {
+    bottom: 57px;
+    width: 330px;
+  }
+  .beer-actions > span {
+    font-size: 9px;
+  }
+  .beer-pour,
+  .beer-serve {
+    font-size: 11px;
+    padding: 13px 7px;
+  }
+  .beer .game-status {
+    top: 9%;
+    font-size: 11px;
+    left: 68%;
+    min-width: 130px;
+    max-width: 57%;
+  }
+}
+@media (max-height: 550px) and (orientation: landscape) {
+  .beer-order {
+    top: 15px;
+    left: auto;
+    right: 90px;
+    width: 225px;
+    padding: 10px 15px;
+  }
+  .beer-order p {
+    margin: 5px 0;
+  }
+  .beer-intro {
+    top: 24%;
+    left: 58%;
+  }
+  .beer-intro h1 {
+    font-size: 36px;
+  }
+  .beer-actions {
+    width: 330px;
+    bottom: 32px;
+    left: 72%;
+  }
+  .tilt-actions {
+    margin: 0;
+  }
+  .tilt-actions button {
+    padding: 5px 10px;
+    font-size: 9px;
+  }
+  .beer-pour,
+  .beer-serve {
+    padding: 8px;
+    font-size: 10px;
+  }
+  .beer-actions > span {
+    display: none;
+  }
+  .beer .game-status {
+    top: 17%;
+    left: 45%;
+  }
+}

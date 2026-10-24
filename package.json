@@ -1,13 +1,13 @@
 {
   "name": "ssunplay-arcade",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "npm run build && node server.mjs",
     "build": "node build.mjs",
-    "test": "node --test engine.test.mjs performance.test.mjs",
-    "check": "node --check app.js && node --check engine.js && node --check models.js && node --check stage.js",
+    "test": "node --test engine.test.mjs performance.test.mjs beer.test.mjs",
+    "check": "node --check app.js && node --check engine.js && node --check models.js && node --check stage.js && node --check beer.js",
     "test:browser": "node browser-check.mjs"
   },
   "dependencies": {

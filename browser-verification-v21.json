@@ -1,0 +1,69 @@
+{
+  "version": "2.1.0",
+  "testedAt": "2026-10-24T16:33:32.630Z",
+  "baseUrl": "http://127.0.0.1:4173",
+  "status": "passed",
+  "checks": [
+    {
+      "check": "three-game-home"
+    },
+    {
+      "check": "drive-no-force-indicator"
+    },
+    {
+      "check": "drive-retry"
+    },
+    {
+      "check": "curling-autonomous-sway"
+    },
+    {
+      "check": "curling-random-idle-collapse"
+    },
+    {
+      "check": "curling-catch-next-stage"
+    },
+    {
+      "check": "beer-help"
+    },
+    {
+      "check": "beer-pause-stops-flow-and-time"
+    },
+    {
+      "check": "beer-order-submission",
+      "round": 1,
+      "score": 75
+    },
+    {
+      "check": "beer-order-submission",
+      "round": 2,
+      "score": 87
+    },
+    {
+      "check": "beer-order-submission",
+      "round": 3,
+      "score": 72
+    },
+    {
+      "check": "beer-three-orders-final"
+    },
+    {
+      "check": "beer-record-export",
+      "best": 72
+    },
+    {
+      "check": "beer-import-rejects-invalid-score"
+    },
+    {
+      "check": "beer-record-import"
+    },
+    {
+      "check": "mobile-native-touch-pour-tilt-release",
+      "width": 390,
+      "noHorizontalOverflow": true
+    },
+    {
+      "check": "mobile-pause"
+    }
+  ],
+  "pageErrors": []
+}

@@ -566,6 +566,7 @@ export class CurlingGame {
     this.clock = 0;
     this.phase = "ready";
     this.started = false;
+    this.preview = this.preview || false;
     this.accumulator = 0;
     this.feedback = "";
     this.result = null;
@@ -596,6 +597,41 @@ export class CurlingGame {
     };
     this.points = REST.map((p) => [p[0] + this.man.x, p[1] + 0.95, p[2] - d]);
     this.old = this.points.map((p) => [...p]);
+    Object.assign(this.man, {
+      homeX: this.man.x,
+      homeZ: this.man.z,
+      bx: this.man.x,
+      bz: this.man.z,
+      ux: (this.random() - 0.5) * 0.1,
+      uz: (this.random() - 0.5) * 0.1,
+      vx: 0,
+      vz: 0,
+      leanX: 0,
+      leanZ: 0,
+      dip: 0,
+      dipV: 0,
+      stepCd: 0,
+      amp: 0.55 + Math.min(1, stage / 12) * 0.55,
+      ph: Array.from({ length: 5 }, () => this.random() * 6.28),
+      fr: [
+        0.5 + this.random() * 0.5,
+        0.8 + this.random() * 0.6,
+        0.35 + this.random() * 0.3,
+        1.1 + this.random() * 0.5,
+      ],
+      idleCollapseAt: 7 + d * 0.17 + this.random() * 5,
+    });
+    this.man.feet = [-1, 1].map((v) => ({
+      x: this.man.x + v * 0.11,
+      z: this.man.z,
+      y: 0,
+      fromX: this.man.x + v * 0.11,
+      fromZ: this.man.z,
+      toX: this.man.x + v * 0.11,
+      toZ: this.man.z,
+      progress: 1,
+      delay: 0,
+    }));
     this.startPoints = null;
     this.seatedFrom = null;
   }
@@ -627,8 +663,8 @@ export class CurlingGame {
     this.chair.released = true;
     this.phase = "roll";
     this.started = true;
-    this.time = 0;
-    this.man.collapseAt = Math.max(3, this.man.collapseAt);
+    this.man.collapseAt =
+      this.time + 3.4 + this.distance * 0.17 + this.random() * 1.4;
     return true;
   }
   pause() {
@@ -662,6 +698,7 @@ export class CurlingGame {
   fall(reason, impulse = 0) {
     if (this.man.mode === "fall") return;
     this.man.mode = "fall";
+    this.phase = "fall";
     this.man.fallTime = 0;
     this.feedback = reason;
     this.old = this.points.map((p) => [
@@ -679,12 +716,10 @@ export class CurlingGame {
       yaw = seat ? c.yaw : m.yaw,
       co = Math.cos(yaw),
       si = Math.sin(yaw),
-      wx = seat ? c.x : m.x + Math.sin(t * 1.8 + m.phase) * 0.035,
-      wz = seat ? c.z : m.z + Math.sin(t * 1.1 + m.phase) * 0.025,
-      leanX = seat ? Math.sin(t * 4) * 0.025 : Math.sin(t * 2 + m.phase) * 0.1,
-      leanZ = seat
-        ? Math.sin(t * 5) * 0.018
-        : Math.sin(t * 1.6 + m.phase) * 0.08;
+      wx = seat ? c.x : m.x,
+      wz = seat ? c.z : m.z,
+      leanX = seat ? Math.sin(t * 4) * 0.025 : m.leanX,
+      leanZ = seat ? Math.sin(t * 5) * 0.018 : m.leanZ;
     const target = base.map((p, i) => {
       let x = p[0],
         y = p[1],
@@ -696,6 +731,20 @@ export class CurlingGame {
       if (i === 7 || i === 10) z += Math.sin(t * 2 + (i === 7 ? 0 : 2)) * 0.035;
       return [wx + x * co + z * si, m.pelvisY + y, wz - x * si + z * co];
     });
+    if (!seat && m.feet) {
+      for (let k = 0; k < 2; k++) {
+        const foot = m.feet[k],
+          hip = 11 + k * 3,
+          knee = hip + 1,
+          ankle = hip + 2;
+        target[ankle] = [foot.x, 0.06 + foot.y, foot.z];
+        target[knee] = [
+          (target[hip][0] + foot.x) / 2,
+          (target[hip][1] + 0.06 + foot.y) / 2,
+          Math.min(target[hip][2], foot.z) - 0.14,
+        ];
+      }
+    }
     if (seat && m.sitFrom && m.seatTime < 0.35) {
       const blend = Math.min(1, m.seatTime / 0.35);
       for (let i = 0; i < 17; i++)
@@ -708,6 +757,83 @@ export class CurlingGame {
     }
     this.points = target;
     this.old = target.map((p) => [...p]);
+  }
+  balance(h) {
+    const m = this.man,
+      t = this.time,
+      urgency = this.started
+        ? clamp(1 - (m.collapseAt - t) / (3.4 + this.distance * 0.17), 0, 1)
+        : clamp(t / m.idleCollapseAt, 0, 1),
+      r = this.random;
+    const fx =
+        m.amp *
+        (Math.sin(t * m.fr[0] * 6.28 + m.ph[0]) * 0.7 +
+          Math.sin(t * m.fr[1] * 6.28 + m.ph[1]) * 0.45),
+      fz =
+        m.amp *
+        (Math.sin(t * m.fr[2] * 6.28 + m.ph[2]) * 0.6 +
+          Math.sin(t * m.fr[3] * 6.28 + m.ph[3]) * 0.4);
+    m.vx += (2.2 * m.ux - 0.9 * m.vx + fx) * h;
+    m.vz += (2.2 * m.uz - 0.9 * m.vz + fz) * h;
+    m.ux += m.vx * h;
+    m.uz += m.vz * h;
+    m.stepCd -= h;
+    const lean = Math.hypot(m.ux, m.uz);
+    if (lean > 0.15 && m.stepCd <= 0) {
+      const factor = 1.25 + r() * 0.5,
+        hx = m.bx + m.ux,
+        hz = m.bz + m.uz;
+      m.bx = lerp(m.bx + m.ux * factor, m.homeX, 0.25);
+      m.bz = lerp(m.bz + m.uz * factor, m.homeZ, 0.25);
+      m.ux = hx - m.bx;
+      m.uz = hz - m.bz;
+      m.vx *= 0.6;
+      m.vz *= 0.6;
+      m.stepCd = 0.28 + r() * 0.15;
+      for (let k = 0; k < 2; k++) {
+        const f = m.feet[k];
+        Object.assign(f, {
+          fromX: f.x,
+          fromZ: f.z,
+          toX: m.bx + (k ? 0.11 : -0.11),
+          toZ: m.bz,
+          progress: 0,
+          delay: k * 0.12,
+        });
+      }
+    }
+    const length = Math.hypot(m.ux, m.uz);
+    if (length > 0.3) {
+      m.ux *= 0.3 / length;
+      m.uz *= 0.3 / length;
+    }
+    for (const f of m.feet) {
+      f.delay -= h;
+      if (f.delay <= 0 && f.progress < 1) {
+        f.progress = Math.min(1, f.progress + h / 0.16);
+        const k = f.progress * f.progress * (3 - 2 * f.progress);
+        f.x = lerp(f.fromX, f.toX, k);
+        f.z = lerp(f.fromZ, f.toZ, k);
+        f.y = Math.sin(f.progress * Math.PI) * 0.09;
+      }
+    }
+    if (r() < h * (0.6 + urgency * 2.5)) m.dipV = -0.5 - urgency * 0.9;
+    m.dip += m.dipV * h;
+    m.dipV += (-m.dip * 60 - m.dipV * 7) * h;
+    m.pelvisY = 0.92 - 0.11 * urgency ** 2.2 + Math.min(0, m.dip);
+    m.leanX = clamp(
+      m.ux * 2.4 + Math.sin(t * 1.9 + m.ph[1]) * 0.12,
+      -0.75,
+      0.75,
+    );
+    m.leanZ = clamp(
+      m.uz * 2.4 + Math.sin(t * 1.4 + m.ph[2]) * 0.1 + 0.08,
+      -0.75,
+      0.75,
+    );
+    m.x = m.bx + m.ux;
+    m.z = m.bz + m.uz;
+    m.yaw = Math.sin(t * 0.45 + m.ph[4]) * 0.16;
   }
   ragdoll(h) {
     for (let i = 0; i < 17; i++) {
@@ -750,7 +876,15 @@ export class CurlingGame {
   step(h) {
     const c = this.chair,
       m = this.man;
-    if (this.started) this.time += h;
+    if (this.preview) {
+      this.time += h;
+      this.man.leanX = Math.sin(this.time * 2) * 0.18;
+      this.man.leanZ = Math.sin(this.time * 1.3) * 0.12;
+      this.pose();
+      return;
+    }
+    this.time += h;
+    if (m.mode === "stand") this.balance(h);
     if (c.released && !c.held) {
       const v = Math.hypot(c.vx, c.vz);
       if (v > 0.0001) {
@@ -800,9 +934,10 @@ export class CurlingGame {
       }
       return;
     }
-    if (!this.started) {
-      this.pose();
-      return;
+    if (!this.started && m.mode === "stand" && this.time >= m.idleCollapseAt) {
+      m.mode = "collapse";
+      m.collapseTime = 0;
+      m.collapseY = m.pelvisY;
     }
     const speed = Math.hypot(c.vx, c.vz),
       dx = m.x - c.x,
@@ -817,9 +952,10 @@ export class CurlingGame {
         along < 0.3 &&
         Math.abs(c.yaw - m.yaw) < 1.35;
     if (m.mode === "stand") {
-      if (c.stopTime > 0.35)
+      if (this.started && c.stopTime > 0.35)
         m.collapseAt = Math.min(m.collapseAt, this.time + 0.5);
-      if (along < -0.6) m.collapseAt = Math.min(m.collapseAt, this.time + 0.3);
+      if (this.started && along > 0.6)
+        m.collapseAt = Math.min(m.collapseAt, this.time + 0.3);
       if (Math.abs(lateral) < 0.36 && Math.abs(along) < 0.48 && speed > 4.4) {
         this.fall("너무 빨라서 동료가 날아갔어요!", 0.7);
         return;
@@ -843,14 +979,17 @@ export class CurlingGame {
         this.pose();
         return;
       }
-      if (this.time >= m.collapseAt) {
+      if (this.started && this.time >= m.collapseAt) {
         m.mode = "collapse";
         m.collapseTime = 0;
+        m.collapseY = m.pelvisY;
       }
     }
     if (m.mode === "collapse") {
       m.collapseTime += h;
-      m.pelvisY = 0.95 - 2.6 * m.collapseTime ** 2;
+      m.pelvisY = (m.collapseY ?? 0.95) - 2.6 * m.collapseTime ** 2;
+      m.x += m.vx * 0.5 * h;
+      m.z += (0.55 + m.vz * 0.3) * h;
       this.pose();
       if (m.pelvisY <= 0.58) {
         if (aligned && speed <= 4.4) {
@@ -897,4 +1036,191 @@ export function flickVelocity(samples, height, now) {
   if (screenSpeed < 1.2 || n < 0.001) return null;
   const v = Math.min(17, screenSpeed);
   return { vx: (dx / n) * v, vz: (dz / n) * v, speed: v };
+}
+
+export const BEER_ORDERS = [
+  {
+    name: "퇴근 후 첫 잔",
+    request: "시원하게 가득, 거품은 두 손가락!",
+    liquid: 0.74,
+    foam: 0.17,
+    time: 32,
+  },
+  {
+    name: "깔끔한 한 잔",
+    request: "거품은 얇게, 맥주는 넉넉하게 부탁해요.",
+    liquid: 0.82,
+    foam: 0.1,
+    time: 30,
+  },
+  {
+    name: "부드러운 마무리",
+    request: "크리미한 거품을 조금 더 올려주세요.",
+    liquid: 0.69,
+    foam: 0.23,
+    time: 30,
+  },
+];
+export class BeerGame {
+  constructor(seed = Date.now()) {
+    this.seed = seed;
+    this.random = rng(seed);
+    this.round = 0;
+    this.scores = [];
+    this.reset();
+  }
+  reset() {
+    this.order = BEER_ORDERS[this.round];
+    this.phase = "ready";
+    this.liquid = 0;
+    this.foam = 0;
+    this.spilled = 0;
+    this.angle = 35;
+    this.targetAngle = 35;
+    this.pouring = false;
+    this.flow = 0;
+    this.pressure = 0.125 + this.random() * 0.018;
+    this.time = 0;
+    this.clock = 0;
+    this.started = false;
+    this.accumulator = 0;
+    this.roundResult = null;
+    this.result = null;
+    this.spillFlash = 0;
+  }
+  setAngle(deg) {
+    if (!["ready", "pour", "settle"].includes(this.phase)) return;
+    this.targetAngle = clamp(deg, 0, 55);
+  }
+  setPour(on) {
+    if (!["ready", "pour", "settle"].includes(this.phase)) return false;
+    this.pouring = on;
+    if (on) {
+      this.started = true;
+      this.phase = "pour";
+    } else if (this.started) this.phase = "settle";
+    return true;
+  }
+  get capacity() {
+    return 1 - 0.24 * Math.sin((this.angle * Math.PI) / 180);
+  }
+  get total() {
+    return this.liquid + this.foam;
+  }
+  get remaining() {
+    return Math.max(0, this.order.time - this.time);
+  }
+  pause() {
+    if (!["result", "tasting", "paused"].includes(this.phase)) {
+      this.previousPhase = this.started ? "settle" : "ready";
+      this.pouring = false;
+      this.flow = 0;
+      this.phase = "paused";
+    }
+  }
+  resume() {
+    if (this.phase === "paused") this.phase = this.previousPhase;
+  }
+  step(h) {
+    this.clock += h;
+    if (this.started) this.time += h;
+    this.angle = lerp(this.angle, this.targetAngle, 1 - Math.exp(-h * 7));
+    this.flow = lerp(
+      this.flow,
+      this.pouring ? this.pressure : 0,
+      1 - Math.exp(-h * (this.pouring ? 7 : 22)),
+    );
+    if (this.flow > 0.0001) {
+      const tilt = this.angle / 55,
+        foamRate =
+          0.05 + 0.3 * (1 - tilt) ** 2 + 0.12 * Math.max(0, this.total - 0.78);
+      const amount = this.flow * h;
+      this.liquid += amount * (1 - foamRate);
+      this.foam += amount * foamRate * 3.5;
+    }
+    const decay = this.foam * (0.042 + this.angle * 0.00035) * h;
+    this.foam -= decay;
+    this.liquid += decay / 3.5;
+    const overflow = Math.max(0, this.total - this.capacity);
+    if (overflow > 0) {
+      const foamLoss = Math.min(this.foam, overflow);
+      this.foam -= foamLoss;
+      this.liquid -= overflow - foamLoss;
+      this.spilled += foamLoss / 3.5 + (overflow - foamLoss);
+      this.spillFlash = 1;
+    }
+    this.spillFlash = Math.max(0, this.spillFlash - h * 2);
+    this.liquid = Math.max(0, this.liquid);
+    if (this.started && this.remaining <= 0) this.serve(true);
+  }
+  update(dt) {
+    if (["paused", "tasting", "result"].includes(this.phase)) return;
+    this.accumulator += clamp(dt, 0, 0.25);
+    while (
+      this.accumulator >= 1 / 120 &&
+      !["tasting", "result"].includes(this.phase)
+    ) {
+      this.step(1 / 120);
+      this.accumulator -= 1 / 120;
+    }
+  }
+  serve(timedOut = false) {
+    if (
+      !["ready", "pour", "settle"].includes(this.phase) ||
+      !this.started ||
+      (this.total < 0.04 && !timedOut)
+    )
+      return false;
+    this.pouring = false;
+    this.flow = 0;
+    this.targetAngle = 0;
+    const liquidError = Math.abs(this.liquid - this.order.liquid),
+      foamError = Math.abs(this.foam - this.order.foam),
+      spillPenalty = Math.min(30, this.spilled * 120),
+      score = Math.round(
+        clamp(100 - liquidError * 125 - foamError * 160 - spillPenalty, 0, 100),
+      );
+    const feedback = timedOut
+      ? "주문 시간이 끝났어요."
+      : this.spilled > 0.07
+        ? "넘친 맥주가 아쉬워요."
+        : this.foam > this.order.foam + 0.1
+          ? "거품이 많아요. 잔을 더 기울여 보세요."
+          : this.foam < this.order.foam - 0.07
+            ? "거품이 적어요. 마지막엔 잔을 세워보세요."
+            : this.liquid < this.order.liquid - 0.12
+              ? "맥주를 조금 더 채워주세요."
+              : score >= 90
+                ? "완벽한 한 잔! 손님이 만족했어요."
+                : "좋아요! 다음 잔은 더 섬세하게.";
+    this.roundResult = {
+      round: this.round,
+      score,
+      liquid: this.liquid,
+      foam: this.foam,
+      spilled: this.spilled,
+      timedOut,
+      feedback,
+    };
+    this.scores.push(this.roundResult);
+    if (this.round === BEER_ORDERS.length - 1) {
+      this.phase = "result";
+      const value = Math.round(
+        this.scores.reduce((s, r) => s + r.score, 0) / this.scores.length,
+      );
+      this.result = {
+        game: "beer",
+        value,
+        metric: value,
+        rounds: this.scores.map((r) => ({ ...r })),
+      };
+    } else this.phase = "tasting";
+    return true;
+  }
+  next() {
+    if (this.phase !== "tasting") return false;
+    this.round++;
+    this.reset();
+    return true;
+  }
 }

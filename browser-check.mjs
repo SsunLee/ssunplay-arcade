@@ -1,7 +1,10 @@
 import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
-const base = process.env.BASE_URL || "http://127.0.0.1:4173";
+const base = process.env.BASE_URL || "http://127.0.0.1:4173",
+  checks = [],
+  errors = [];
+await fs.mkdir("dist/qa", { recursive: true });
 const browser = await chromium.launch({
   headless: true,
   args: [
@@ -11,139 +14,141 @@ const browser = await chromium.launch({
     "--enable-unsafe-swiftshader",
   ],
 });
-const out = "browser-verification.json";
-const prior = process.env.ONLY_MOBILE
-  ? JSON.parse(await fs.readFile(out, "utf8"))
-  : null;
-const results = (prior?.checks || []).filter(
-    (x) => !x.check.startsWith("mobile-"),
-  ),
-  errors = prior?.pageErrors || [];
-async function record(check, info = {}) {
-  results.push({ check, ...info });
-  console.log(JSON.stringify(results.at(-1)));
-}
+const record = (check, detail = {}) => {
+  checks.push({ check, ...detail });
+  console.log(JSON.stringify(checks.at(-1)));
+};
+const phase = (p, name) =>
+  p.locator('#game[data-phase="' + name + '"]').waitFor({ timeout: 15000 });
 try {
-  if (!process.env.ONLY_MOBILE) {
-    const ctx = await browser.newContext({
-        viewport: { width: 1280, height: 800 },
-      }),
-      p = await ctx.newPage();
-    p.on("pageerror", (e) => errors.push(e.message));
-    await p.goto(base + "/", { waitUntil: "domcontentloaded" });
-    await p.locator("#preview-drive[data-triangles]").waitFor();
-    assert.equal(await p.locator(".game-card").count(), 2);
-    await p.screenshot({ path: "preview-desktop.png", fullPage: true });
-    await record("desktop-home", { cards: 2 });
-    await p.locator('a[href="/game/drive/"]').click();
-    await p.locator("#game[data-renderer]").waitFor();
-    for (let s = 0; s < 5; s++) {
-      await p.locator("#stage-select").selectOption("" + s);
-      await p.waitForTimeout(120);
-      const triangles = +(await p
-        .locator("#game")
-        .getAttribute("data-triangles"));
-      assert.ok(triangles > 10000);
-      if (process.env.STAGE_SCREENSHOTS === "1")
-        await p.screenshot({ path: "preview-stage-" + s + ".png" });
-      await record("stage-3d", { stage: s, triangles });
-    }
-    await p.locator("#stage-select").selectOption("0");
-    const r = await p.locator("#game").boundingBox();
-    await p.mouse.move(950, r.y + 110);
-    await p.mouse.down();
-    await p.mouse.move(950, r.y + 110 + r.height * 0.5 * 0.5, { steps: 6 });
-    await p.waitForTimeout(120);
-    await p.locator('#game[data-phase="aim"]').waitFor({ timeout: 10000 });
-    assert.equal(await p.locator("#power-number").innerText(), "50%");
-    await record("mouse-pull", { percent: "50%" });
-    await p.mouse.up();
-    await p.waitForTimeout(200);
-    await p.locator('#game[data-phase="run"]').waitFor({ timeout: 10000 });
-    await p.getByRole("button", { name: "일시 정지", exact: true }).click();
-    await p.waitForTimeout(80);
-    await p.locator('#game[data-phase="paused"]').waitFor({ timeout: 10000 });
-    await p.getByRole("button", { name: "계속하기", exact: true }).click();
-    await record("pause-resume");
-    await p.locator("#result").waitFor({ state: "visible", timeout: 90000 });
-    assert.match(await p.locator("#result").innerText(), /안전하게 정지/);
-    await p.screenshot({ path: "preview-drive-result.png" });
-    await record("drive-stop-result", {
-      result: await p.locator(".result-value").innerText(),
-    });
-    await p.getByRole("button", { name: "다시 도전 ↻", exact: true }).click();
-    await p.waitForTimeout(80);
-    await p.locator('#game[data-phase="ready"]').waitFor({ timeout: 10000 });
-    await record("retry");
-    await p.goto(base + "/game/curling/", { waitUntil: "domcontentloaded" });
-    await p.locator("#game[data-renderer]").waitFor();
-    await p.screenshot({ path: "preview-curling.png" });
-    await p.mouse.move(640, 450);
-    await p.mouse.down();
-    await p.waitForTimeout(25);
-    await p.mouse.move(640, 425);
-    await p.waitForTimeout(25);
-    await p.mouse.move(640, 400);
-    await p.waitForTimeout(25);
-    await p.mouse.move(640, 375);
-    await p.mouse.up();
-    await p.waitForTimeout(100);
-    await p.locator('#game[data-phase="roll"]').waitFor({ timeout: 10000 });
-    const flickPhase = await p.locator("#game").getAttribute("data-phase");
-    assert.equal(flickPhase, "roll");
-    await record("mouse-curling-flick", { phase: flickPhase });
-    await p.waitForTimeout(5500);
-    await p.screenshot({ path: "preview-curling-play.png" });
-    await record("curling-after-flick", {
-      phase: await p.locator("#game").getAttribute("data-phase"),
-      stage: await p.locator("#stage-label").innerText(),
-    });
-    if (await p.locator("#result").isVisible())
-      await p.getByRole("button", { name: "다시 도전 ↻", exact: true }).click();
-    else
-      await p.getByRole("button", { name: "다시 시작", exact: true }).click();
+  const ctx = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+    }),
+    p = await ctx.newPage();
+  p.on("pageerror", (e) => errors.push(e.message));
+  await p.goto(base + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
+  await p.locator("#preview-beer[data-renderer]").waitFor();
+  assert.equal(await p.locator(".game-card").count(), 3);
+  await p.screenshot({ path: "dist/qa/home-v21.png", fullPage: true });
+  record("three-game-home");
+  await p.locator('a[href="/game/drive/"]').click();
+  await phase(p, "ready");
+  assert.equal(
+    await p.locator("#power-number,#power-box,#power-fill").count(),
+    0,
+  );
+  const r = await p.locator("#game").boundingBox();
+  await p.mouse.move(1000, r.y + 120);
+  await p.mouse.down();
+  await p.mouse.move(1000, r.y + 280, { steps: 4 });
+  await phase(p, "aim");
+  assert.equal((await p.locator("body").innerText()).includes("%"), false);
+  await p.screenshot({ path: "dist/qa/drive-no-force.png" });
+  await p.mouse.up();
+  await phase(p, "run");
+  record("drive-no-force-indicator");
+  await p.getByRole("button", { name: "다시 시작", exact: true }).click();
+  await phase(p, "ready");
+  record("drive-retry");
+  await p.goto(base + "/game/curling/", { waitUntil: "domcontentloaded" });
+  await phase(p, "ready");
+  const a = await p.screenshot();
+  await p.waitForTimeout(1800);
+  const b = await p.screenshot();
+  assert.equal(a.equals(b), false);
+  record("curling-autonomous-sway");
+  await p.locator("#result").waitFor({ state: "visible", timeout: 65000 });
+  assert.match(await p.locator("#result").innerText(), /늦었어요/);
+  await p.screenshot({ path: "dist/qa/curling-idle-collapse.png" });
+  record("curling-random-idle-collapse");
+  await p.getByRole("button", { name: "다시 도전 ↻", exact: true }).click();
+  await phase(p, "ready");
+  await p.locator("#game").focus();
+  await p.keyboard.down("Space");
+  await p.waitForTimeout(425);
+  await p.keyboard.up("Space");
+  await p
+    .locator("#stage-label")
+    .filter({ hasText: "2번째" })
+    .waitFor({ timeout: 25000 });
+  record("curling-catch-next-stage");
+  await p.goto(base + "/game/beer/", { waitUntil: "domcontentloaded" });
+  await phase(p, "ready");
+  await p.getByRole("button", { name: "도움말", exact: true }).click();
+  assert.match(await p.locator("dialog").innerText(), /거품/);
+  await p.getByRole("button", { name: "닫기", exact: true }).click();
+  record("beer-help");
+  const scores = [];
+  for (let i = 0; i < 3; i++) {
+    await p.getByRole("button", { name: "↶ 잔 기울이기", exact: true }).click();
     await p.locator("#game").focus();
     await p.keyboard.down("Space");
-    await p.waitForTimeout(425);
+    const until = i ? 24 : 26;
+    await p.waitForFunction(
+      (n) => parseInt(document.querySelector("#main-value").textContent) <= n,
+      until,
+      { timeout: 40000 },
+    );
     await p.keyboard.up("Space");
+    await phase(p, "settle");
+    await p.getByRole("button", { name: "잔 세우기 ↑", exact: true }).click();
+    if (i === 0) {
+      await p.screenshot({ path: "dist/qa/beer-desktop.png" });
+      await p.getByRole("button", { name: "일시 정지", exact: true }).click();
+      await phase(p, "paused");
+      const time = await p.locator("#main-value").innerText();
+      await p.waitForTimeout(1200);
+      assert.equal(await p.locator("#main-value").innerText(), time);
+      await p.getByRole("button", { name: "계속하기", exact: true }).click();
+      await phase(p, "settle");
+      record("beer-pause-stops-flow-and-time");
+    }
     await p
-      .locator("#stage-label")
-      .filter({ hasText: "2번째" })
-      .waitFor({ timeout: 30000 });
-    assert.match(await p.locator("#stage-label").innerText(), /2번째/);
-    await record("curling-keyboard", {
-      phase: await p.locator("#game").getAttribute("data-phase"),
-      stage: await p.locator("#stage-label").innerText(),
+      .getByRole("button", { name: "이 잔 드리기 ↗", exact: true })
+      .click();
+    await p.locator("#result").waitFor({ state: "visible" });
+    const score = parseInt(await p.locator(".result-value").innerText());
+    assert.ok(score >= 0 && score <= 100);
+    scores.push(score);
+    record("beer-order-submission", { round: i + 1, score });
+    if (i < 2) {
+      await p.getByRole("button", { name: "다음 손님 →", exact: true }).click();
+      await phase(p, "ready");
+    }
+  }
+  assert.match(await p.locator("#result").innerText(), /오늘의 탭마스터/);
+  assert.equal(await p.locator(".beer-score-list span").count(), 3);
+  await p.screenshot({ path: "dist/qa/beer-final.png" });
+  record("beer-three-orders-final");
+  await p.getByRole("button", { name: "내 기록", exact: true }).click();
+  const promise = p.waitForEvent("download");
+  await p.getByRole("button", { name: "기록 내보내기", exact: true }).click();
+  const backup = JSON.parse(
+    await fs.readFile(await (await promise).path(), "utf8"),
+  );
+  assert.ok(Number.isInteger(backup.beer));
+  record("beer-record-export", { best: backup.beer });
+  await p
+    .locator("#import")
+    .setInputFiles({
+      name: "bad-beer.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify({ ...backup, beer: 101 })),
     });
-    await p.getByRole("button", { name: "내 기록", exact: true }).click();
-    assert.ok(await p.locator("dialog").isVisible());
-    const download = p.waitForEvent("download");
-    await p.getByRole("button", { name: "기록 내보내기", exact: true }).click();
-    const dl = await download;
-    const filename = await dl.path(),
-      backup = JSON.parse(await fs.readFile(filename, "utf8"));
-    assert.equal(backup.version, 2);
-    assert.ok(Number.isFinite(backup.drive[0]));
-    await record("records-export", { version: backup.version });
-    await p.locator("#import").setInputFiles({
-      name: "roundtrip.json",
+  await p
+    .getByText("올바른 쑨플레이 기록 파일을 선택해 주세요.", { exact: true })
+    .waitFor();
+  record("beer-import-rejects-invalid-score");
+  await p
+    .locator("#import")
+    .setInputFiles({
+      name: "backup.json",
       mimeType: "application/json",
       buffer: Buffer.from(JSON.stringify(backup)),
     });
-    await p.getByText("기록을 가져왔습니다.", { exact: true }).waitFor();
-    await record("records-import");
-    await p.locator("#import").setInputFiles({
-      name: "invalid.json",
-      mimeType: "application/json",
-      buffer: Buffer.from("{bad"),
-    });
-    await p
-      .getByText("올바른 쑨플레이 기록 파일을 선택해 주세요.", { exact: true })
-      .waitFor();
-    await record("invalid-import-rejected");
-    await p.getByRole("button", { name: "닫기", exact: true }).click();
-    await ctx.close();
-  }
+  await p.getByText("기록을 가져왔습니다.", { exact: true }).waitFor();
+  record("beer-record-import");
+  await ctx.close();
   const mobile = await browser.newContext({
       viewport: { width: 390, height: 844 },
       deviceScaleFactor: 2,
@@ -152,62 +157,55 @@ try {
     }),
     m = await mobile.newPage();
   m.on("pageerror", (e) => errors.push(e.message));
-  await m.goto(base + "/", { waitUntil: "domcontentloaded" });
-  await m.locator("#preview-drive[data-triangles]").waitFor();
+  await m.goto(base + "/game/beer/", {
+    waitUntil: "domcontentloaded",
+    timeout: 60000,
+  });
+  await phase(m, "ready");
   assert.equal(
     await m.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     true,
   );
-  await m.screenshot({ path: "preview-mobile.png", fullPage: true });
-  await m.locator('a[href="/game/drive/"]').click();
-  await m.locator("#game[data-renderer]").waitFor();
-  await m.screenshot({ path: "preview-mobile-drive.png" });
   const cd = await mobile.newCDPSession(m),
-    box = await m.locator("#game").boundingBox();
-  const x = 300,
-    y = box.y + 150,
-    end = y + box.height * 0.5 * 0.4;
+    box = await m.locator("#game").boundingBox(),
+    x = 220,
+    y = box.y + box.height * 0.58;
   await cd.send("Input.dispatchTouchEvent", {
     type: "touchStart",
     touchPoints: [{ x, y }],
   });
-  for (let i = 1; i <= 6; i++) {
-    await cd.send("Input.dispatchTouchEvent", {
-      type: "touchMove",
-      touchPoints: [{ x, y: y + ((end - y) * i) / 6 }],
-    });
-    await m.waitForTimeout(20);
-  }
-  await m.waitForTimeout(80);
-  await m.getByText("40%", { exact: true }).waitFor({ timeout: 10000 });
+  await m.waitForTimeout(200);
+  await cd.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [{ x: x - 70, y }],
+  });
+  await phase(m, "pour");
+  await m.waitForTimeout(1000);
   await cd.send("Input.dispatchTouchEvent", {
     type: "touchEnd",
     touchPoints: [],
   });
-  await m.waitForTimeout(100);
-  await m.locator('#game[data-phase="run"]').waitFor({ timeout: 10000 });
-  await record("mobile-native-touch", {
+  await phase(m, "settle");
+  await m.screenshot({ path: "dist/qa/beer-mobile.png" });
+  record("mobile-native-touch-pour-tilt-release", {
     width: 390,
-    pull: "40%",
-    phase: "run",
-    horizontalOverflow: false,
+    noHorizontalOverflow: true,
   });
-  await m.getByRole("button", { name: "도움말", exact: true }).click();
-  assert.ok(await m.locator("dialog").isVisible());
-  await record("mobile-help");
+  await m.getByRole("button", { name: "일시 정지", exact: true }).click();
+  await phase(m, "paused");
+  record("mobile-pause");
+  await mobile.close();
   assert.deepEqual(errors, []);
   await fs.writeFile(
-    out,
+    "browser-verification-v21.json",
     JSON.stringify(
       {
+        version: "2.1.0",
         testedAt: new Date().toISOString(),
         baseUrl: base,
-        execution: process.env.ONLY_MOBILE
-          ? "desktop passed; mobile resumed in isolated context"
-          : "full sequential desktop and mobile",
-        checks: results,
-        pageErrors: errors,
         status: "passed",
+        checks,
+        pageErrors: errors,
       },
       null,
       2,
@@ -215,14 +213,13 @@ try {
   );
 } catch (e) {
   await fs.writeFile(
-    out,
+    "browser-verification-v21.json",
     JSON.stringify(
       {
-        testedAt: new Date().toISOString(),
-        baseUrl: base,
-        checks: results,
-        pageErrors: errors,
+        version: "2.1.0",
         status: "failed",
+        checks,
+        pageErrors: errors,
         error: String(e),
       },
       null,
