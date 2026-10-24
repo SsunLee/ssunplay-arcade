@@ -999,7 +999,7 @@ export class CurlingGame {
           return;
         }
         this.fall(
-          c.stopTime > 0.2
+          !this.started ? "동료가 균형을 잃었어요. 쓰러지기 전에 의자를 보내주세요." : c.stopTime > 0.2
             ? "의자가 닿기 전에 주저앉았어요."
             : Math.abs(lateral) > 0.25
               ? "방향이 빗나갔어요."
