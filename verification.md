@@ -30,7 +30,9 @@
 | 브라우저 콘솔 | 확인 | 검사 시점 error/warn 0건 |
 | 직접 게임 URL/새로고침 | 통과 | 정적 진입 파일 추가 후 /game/drive/ 직접 로딩 성공, BEST 6.84m 유지 |
 | 실제 iOS Safari 터치/오디오/전체화면 | 미검증 | 실기기 없음, 도구의 터치 이벤트 주입 미지원 |
-| 공유·파일 다운로드/가져오기 | 구현, 추가 실검증 필요 | 네이티브 권한/OS에 따라 동작 경로 다름 |
+| 공유 모달/수동 복사 | 통과 | 최종 결과 6.95m / 7,360점과 정확한 게임 URL 표시 |
+| 실제 JSON 다운로드/파일 가져오기 | 통과 | ssunplay-records.json 다운로드 후 재업로드 성공, 총 4회 기록 유지(중복 제거) |
+| OS 네이티브 공유/클립보드 권한 | 미검증 | 브라우저·OS 권한에 따른 실제 외부 공유 완료는 확인하지 않음 |
 
 ## 발견 및 수정
 
@@ -44,3 +46,13 @@
 ## 제한
 
 자동화 통과는 모든 실제 브라우저·기기의 동등한 동작을 증명하지 않습니다. 글로벌 랭킹/서버 동기화/다국어는 별도 기능입니다. REA 실행 결과로 표시하지 않습니다. 상세 근거와 원본 대비 차이는 reverse-engineering.md를 확인하세요.
+
+## 최종 Git 배포 확인
+
+- GitHub main commit: `349947f138ed0e93c772bf49cc95e67efb18be11`
+- Vercel project: `ssunplay-arcade`, team `sunbaelees-projects`
+- Git 소스에서 프로덕션 자동 빌드: READY, deployment `dpl_EzZhPiYM7wzBfcuqAo7UHt4WHoG1`
+- 공개 주소: https://ssunplay-arcade.vercel.app/
+- 이 Git 배포에서 두 게임 직접 접속, 드라이브 성공/결과 공유 모달, 기록 유지, JSON 다운로드→재가져오기를 확인.
+- 콘솔 검사 시점 error/warn 0건.
+- 실제 iOS Safari 검증 및 글로벌 랭킹/계정 동기화/다국어 미구현은 위 제한을 유지함.
