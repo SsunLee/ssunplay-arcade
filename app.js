@@ -10,6 +10,7 @@ import {
 } from "./engine.js";
 import { GameView } from "./stage.js";
 import { BeerView } from "./beer.js";
+import { beerShareSummary } from "./beer-share.js";
 const $ = (s) => document.querySelector(s),
   app = $("#app"),
   modal = $("#dialog"),
@@ -449,7 +450,7 @@ function togglePause() {
   b.setAttribute("aria-label", g.phase === "paused" ? "계속하기" : "일시 정지");
 }
 function openDialog(html) {
-  modal.classList.remove("share-dialog");
+  modal.classList.remove("share-dialog", "boast-dialog");
   modal.removeAttribute("aria-labelledby");
   if (active?.kind === "beer") {
     active.g.setPour(false);
@@ -512,11 +513,12 @@ function help() {
     `<span class="eyebrow">HOW TO PLAY</span><h2>${k === "curling" ? "의자 컬링" : k === "drive" ? "치킨 드라이브" : "쑨플레이에 오신 걸 환영해요"}</h2>${!k || k === "curling" ? "<h3>의자 컬링</h3><p>동료가 비틀거리다 무작위로 주저앉습니다. 주황색 의자를 잡고 앞으로 빠르게 밀어 놓으세요. 마지막 순간의 스와이프 속도가 의자의 속도가 됩니다. 좌우로 움직여 동료와 위치도 맞출 수 있어요.</p><p>너무 빠르게 부딪히면 동료가 넘어집니다. 의자가 골반 아래 도착했을 때 속도가 줄어들어야 안전하게 앉을 수 있어요. 성공하면 다음 동료가 더 멀리 등장합니다.</p>" : ""}${!k || k === "drive" ? "<h3>치킨 드라이브</h3><p>화면을 아래로 당겨 힘을 정하고 손을 놓아 출발하세요. 멀리 당길수록 강한 힘으로 출발합니다. 출발 후에는 브레이크가 없습니다.</p><p>절벽 가까이 멈출수록 좋은 기록! 앞부분이 절벽 밖으로 나와도 무게중심이 버티면 성공입니다. 차종과 노면이 다른 5개 스테이지에 도전하세요.</p>" : ""}<h3>키보드</h3><p>${k === "curling" ? "← →로 의자 위치를 정하고, Space를 눌렀다 놓으면 발사합니다. 누른 시간으로 힘을 정합니다." : "Space를 길게 누르면 힘이 커집니다. 손을 떼면 출발합니다."}<br>R 다시 시작 · Esc 일시 정지</p><p class="muted small">기록은 브라우저에 저장됩니다. 다른 기기로 옮기려면 내 기록에서 파일을 내보내 주세요.</p>`,
   );
 }
-function share() {
+function share(boast = false) {
   const a = active;
   if (!a) return;
   const r = a.g.result;
-  const text =
+  const summary = boast && a.kind === "beer" ? beerShareSummary(a.g) : null;
+  const text = summary ? summary.text :
     !r
       ? `${{ beer: "맥주 잘 따르기", curling: "의자 컬링", drive: "치킨 드라이브" }[a.kind]} — 쑨플레이에서 한 판 도전해 보세요!`
       : a.kind === "beer"
@@ -530,8 +532,11 @@ function share() {
   const intent = new URL("https://x.com/intent/tweet");
   intent.searchParams.set("text", text);
   intent.searchParams.set("url", url);
-  openDialog(`<h2 id="share-title">게임 공유</h2><p>친구에게 한 판 도전을 보내보세요.</p><div class="share-options"><button data-action="copy-link"><span aria-hidden="true">↗</span>링크 복사</button><a href="${esc(intent.href)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">𝕏</span>X 공유</a></div><p id="share-feedback" role="status" aria-live="polite"></p><label class="share-url-label" for="share-url">게임 링크</label><input id="share-url" readonly value="${esc(url)}" aria-label="공유할 게임 링크">`);
+  const card = summary ? `<section class="boast-card" aria-label="공유할 맥주 기록"><span class="boast-label">${esc(summary.label)}</span><div class="boast-score">${summary.score}<small>${summary.final ? "점 · 평균" : "점"}</small></div><dl class="boast-stats"><div><dt>${summary.final ? "총 흘린 맥주" : "흘린 맥주"}</dt><dd>${summary.spilledMl}<small>mL</small></dd></div><div><dt>${summary.final ? "누적 넘침 감점" : "넘침 감점"}</dt><dd>−${summary.penalty}<small>점</small></dd></div></dl><p>나보다 깔끔하게 따를 수 있나요?</p></section>` : `<p>${boast ? esc(text) : "친구에게 한 판 도전을 보내보세요."}</p>`;
+  const payload = boast ? text + "\n" + url : url;
+  openDialog(`<h2 id="share-title">${boast ? "내 기록 자랑하기" : "게임 공유"}</h2>${card}<div class="share-options"><button data-action="copy-link"><span aria-hidden="true">↗</span>${boast ? "기록·링크 복사" : "링크 복사"}</button><a href="${esc(intent.href)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">𝕏</span>X 공유</a></div><p id="share-feedback" role="status" aria-live="polite"></p><label class="share-url-label" for="share-url">${boast ? "공유할 기록과 링크" : "게임 링크"}</label>${boast ? `<textarea id="share-url" readonly aria-label="공유할 기록과 링크">${esc(payload)}</textarea>` : `<input id="share-url" readonly value="${esc(url)}" aria-label="공유할 게임 링크">`}`);
   modal.classList.add("share-dialog");
+  if (boast) modal.classList.add("boast-dialog");
   modal.setAttribute("aria-labelledby", "share-title");
 }
 async function copyGameLink() {
@@ -539,7 +544,7 @@ async function copyGameLink() {
   if (!field || !feedback) return;
   try {
     await navigator.clipboard.writeText(field.value);
-    feedback.textContent = "링크를 복사했습니다.";
+    feedback.textContent = modal.classList.contains("boast-dialog") ? "기록과 링크를 복사했습니다." : "링크를 복사했습니다.";
   } catch {
     field.focus();
     field.select();
@@ -584,6 +589,7 @@ document.addEventListener("click", async (e) => {
     beep();
   }
   if (a === "share") share();
+  if (a === "boast") share(true);
   if (a === "copy-link") await copyGameLink();
   if (a === "fullscreen") {
     try {
@@ -870,9 +876,9 @@ function showBeerResult() {
       : "") +
     '<div class="result-actions">' +
     (final
-      ? '<button class="primary" data-action="retry">다시 도전 ↻</button><button class="secondary" data-action="share">기록 공유 ↗</button>'
+      ? '<button class="primary" data-action="retry">다시 도전 ↻</button>'
       : '<button class="primary" data-action="beer-next">다음 손님 →</button>') +
-    '</div><a href="/" data-nav class="text-link">게임 목록으로</a></section>';
+    '<button class="secondary boast-button" data-action="boast">자랑하기 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>';
 }
 function beerHelp() {
   openDialog(

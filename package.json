@@ -1,12 +1,12 @@
 {
   "name": "ssunplay-arcade",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "npm run build && node server.mjs",
     "build": "node build.mjs",
-    "test": "node --test engine.test.mjs performance.test.mjs beer.test.mjs",
+    "test": "node --test engine.test.mjs performance.test.mjs beer.test.mjs beer-share.test.mjs",
     "check": "node --check app.js && node --check engine.js && node --check models.js && node --check stage.js && node --check beer.js",
     "test:browser": "node browser-check.mjs",
     "test:overflow": "node browser-overflow-check.mjs"
