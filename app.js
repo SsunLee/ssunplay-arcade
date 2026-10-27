@@ -152,7 +152,7 @@ function mount(kind, stage = 0, { practice = false } = {}) {
   if (kind === "curling" && stage) g.reset(stage);
   document.title =
     (kind === "curling" ? "의자 컬링" : "치킨 드라이브") + " | 쑨플레이";
-  app.innerHTML = `${header(kind)}<main id="main" class="game-shell ${kind}"><canvas id="game" tabindex="0" aria-label="${kind === "curling" ? "의자를 잡고 앞으로 빠르게 밀어 놓으세요" : "화면을 아래로 당긴 다음 놓아 출발하세요"}"></canvas><div class="hud"><div class="hud-left"><div class="hud-label" id="stage-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="hud-right">${kind === "drive" ? `<select id="stage-select" aria-label="스테이지">${STAGES.map((s, i) => `<option value="${i}" ${i === stage ? "selected" : ""}>${i + 1}. ${s.name}</option>`).join("")}</select>` : ""}<div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button></div></div></div><div id="title-overlay" class="title-overlay"><p class="game-kicker">${kind === "curling" ? "SAVE YOUR COWORKER" : "HOW CLOSE CAN YOU GO?"}</p><h1>${kind === "curling" ? "의자 컬링" : "치킨 드라이브"}</h1><p class="game-subtitle">${kind === "curling" ? "쓰러지는 동료에게 의자를 밀어주세요!" : "절벽 바로 앞, 멈출 수 있을까요?"}</p></div><div id="gesture-guide" class="gesture-guide"><div class="gesture-arrow">${kind === "curling" ? "↑" : "↓"}</div><b>${kind === "curling" ? "의자를 잡고 앞으로 슥!" : "아래로 당겼다가 놓으세요"}</b><span>${kind === "curling" ? "빠르게 밀수록 멀리 갑니다" : "한 번 출발하면 멈출 수 없어요"}</span></div><div id="game-status" class="game-status" role="status" aria-live="polite"></div><div id="result" class="result-overlay" hidden></div><div class="bottom-bar"><span>${practice ? "연습 모드 · 최고 기록에 반영되지 않습니다" : kind === "curling" ? "의자를 움직여 위치를 맞추고, 마지막 순간에 빠르게 미세요." : "힘 조절이 전부입니다. 낭떠러지에선 바퀴와 무게중심을 조심하세요."}</span><button data-action="help">조작 방법 ?</button></div></main>`;
+  app.innerHTML = `${header(kind)}<main id="main" class="game-shell ${kind}"><canvas id="game" tabindex="0" aria-label="${kind === "curling" ? "의자를 잡고 앞으로 빠르게 밀어 놓으세요" : "화면을 아래로 당긴 다음 놓아 출발하세요"}"></canvas><div class="hud"><div class="hud-left"><div class="hud-label" id="stage-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="hud-right">${kind === "drive" ? `<select id="stage-select" aria-label="스테이지">${STAGES.map((s, i) => `<option value="${i}" ${i === stage ? "selected" : ""}>${i + 1}. ${s.name}</option>`).join("")}</select>` : ""}<div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button><button data-action="share" class="game-share" aria-label="게임 공유" aria-haspopup="dialog" title="공유"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg></button></div></div></div><div id="title-overlay" class="title-overlay"><p class="game-kicker">${kind === "curling" ? "SAVE YOUR COWORKER" : "HOW CLOSE CAN YOU GO?"}</p><h1>${kind === "curling" ? "의자 컬링" : "치킨 드라이브"}</h1><p class="game-subtitle">${kind === "curling" ? "쓰러지는 동료에게 의자를 밀어주세요!" : "절벽 바로 앞, 멈출 수 있을까요?"}</p></div><div id="gesture-guide" class="gesture-guide"><div class="gesture-arrow">${kind === "curling" ? "↑" : "↓"}</div><b>${kind === "curling" ? "의자를 잡고 앞으로 슥!" : "아래로 당겼다가 놓으세요"}</b><span>${kind === "curling" ? "빠르게 밀수록 멀리 갑니다" : "한 번 출발하면 멈출 수 없어요"}</span></div><div id="game-status" class="game-status" role="status" aria-live="polite"></div><div id="result" class="result-overlay" hidden></div><div class="bottom-bar"><span>${practice ? "연습 모드 · 최고 기록에 반영되지 않습니다" : kind === "curling" ? "의자를 움직여 위치를 맞추고, 마지막 순간에 빠르게 미세요." : "힘 조절이 전부입니다. 낭떠러지에선 바퀴와 무게중심을 조심하세요."}</span><button data-action="help">조작 방법 ?</button></div></main>`;
   let view;
   try {
     view = new GameView(kind, $("#game"), g);
@@ -449,6 +449,8 @@ function togglePause() {
   b.setAttribute("aria-label", g.phase === "paused" ? "계속하기" : "일시 정지");
 }
 function openDialog(html) {
+  modal.classList.remove("share-dialog");
+  modal.removeAttribute("aria-labelledby");
   if (active?.kind === "beer") {
     active.g.setPour(false);
     active.pourPointers?.clear();
@@ -510,12 +512,14 @@ function help() {
     `<span class="eyebrow">HOW TO PLAY</span><h2>${k === "curling" ? "의자 컬링" : k === "drive" ? "치킨 드라이브" : "쑨플레이에 오신 걸 환영해요"}</h2>${!k || k === "curling" ? "<h3>의자 컬링</h3><p>동료가 비틀거리다 무작위로 주저앉습니다. 주황색 의자를 잡고 앞으로 빠르게 밀어 놓으세요. 마지막 순간의 스와이프 속도가 의자의 속도가 됩니다. 좌우로 움직여 동료와 위치도 맞출 수 있어요.</p><p>너무 빠르게 부딪히면 동료가 넘어집니다. 의자가 골반 아래 도착했을 때 속도가 줄어들어야 안전하게 앉을 수 있어요. 성공하면 다음 동료가 더 멀리 등장합니다.</p>" : ""}${!k || k === "drive" ? "<h3>치킨 드라이브</h3><p>화면을 아래로 당겨 힘을 정하고 손을 놓아 출발하세요. 멀리 당길수록 강한 힘으로 출발합니다. 출발 후에는 브레이크가 없습니다.</p><p>절벽 가까이 멈출수록 좋은 기록! 앞부분이 절벽 밖으로 나와도 무게중심이 버티면 성공입니다. 차종과 노면이 다른 5개 스테이지에 도전하세요.</p>" : ""}<h3>키보드</h3><p>${k === "curling" ? "← →로 의자 위치를 정하고, Space를 눌렀다 놓으면 발사합니다. 누른 시간으로 힘을 정합니다." : "Space를 길게 누르면 힘이 커집니다. 손을 떼면 출발합니다."}<br>R 다시 시작 · Esc 일시 정지</p><p class="muted small">기록은 브라우저에 저장됩니다. 다른 기기로 옮기려면 내 기록에서 파일을 내보내 주세요.</p>`,
   );
 }
-async function share() {
+function share() {
   const a = active;
   if (!a) return;
   const r = a.g.result;
   const text =
-    a.kind === "beer"
+    !r
+      ? `${{ beer: "맥주 잘 따르기", curling: "의자 컬링", drive: "치킨 드라이브" }[a.kind]} — 쑨플레이에서 한 판 도전해 보세요!`
+      : a.kind === "beer"
       ? `맥주 잘 따르기 ${a.g.result?.value || 0}점! 나만의 완벽한 한 잔에 도전해 보세요.`
       : a.kind === "curling"
         ? `의자 컬링 ${a.g.bestDistance || 0}m! 동료를 구해보세요.`
@@ -523,16 +527,24 @@ async function share() {
           ? "치킨 드라이브에서 절벽으로 날아갔어요…"
           : `치킨 드라이브 ${STAGES[a.g.stage].name}, 절벽까지 ${fmt(a.g.gap)}m!`;
   const url = location.origin + location.pathname;
+  const intent = new URL("https://x.com/intent/tweet");
+  intent.searchParams.set("text", text);
+  intent.searchParams.set("url", url);
+  openDialog(`<h2 id="share-title">게임 공유</h2><p>친구에게 한 판 도전을 보내보세요.</p><div class="share-options"><button data-action="copy-link"><span aria-hidden="true">↗</span>링크 복사</button><a href="${esc(intent.href)}" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">𝕏</span>X 공유</a></div><p id="share-feedback" role="status" aria-live="polite"></p><label class="share-url-label" for="share-url">게임 링크</label><input id="share-url" readonly value="${esc(url)}" aria-label="공유할 게임 링크">`);
+  modal.classList.add("share-dialog");
+  modal.setAttribute("aria-labelledby", "share-title");
+}
+async function copyGameLink() {
+  const field = $("#share-url"), feedback = $("#share-feedback");
+  if (!field || !feedback) return;
   try {
-    if (navigator.share)
-      await navigator.share({ title: "쑨플레이", text, url });
-    else {
-      await navigator.clipboard.writeText(text + " " + url);
-      toast("기록과 링크를 복사했습니다.");
-    }
-  } catch (e) {
-    if (e.name !== "AbortError")
-      toast("공유하지 못했습니다. 주소를 복사해 주세요.");
+    await navigator.clipboard.writeText(field.value);
+    feedback.textContent = "링크를 복사했습니다.";
+  } catch {
+    field.focus();
+    field.select();
+    field.setSelectionRange(0, field.value.length);
+    feedback.textContent = "자동 복사가 제한되어 있어요. 아래 링크를 길게 눌러 복사해 주세요.";
   }
 }
 app.addEventListener("click", (e) => {
@@ -572,6 +584,7 @@ document.addEventListener("click", async (e) => {
     beep();
   }
   if (a === "share") share();
+  if (a === "copy-link") await copyGameLink();
   if (a === "fullscreen") {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
@@ -633,7 +646,7 @@ function mountBeer() {
     header("beer") +
     `<main id="main" class="game-shell beer">
       <canvas id="game" tabindex="0" aria-label="맥주 따르기: 누르고 좌우로 움직여 잔의 기울기를 조절하세요"></canvas>
-      <div class="hud"><div class="hud-left"><div id="stage-label" class="hud-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button></div></div>
+      <div class="hud"><div class="hud-left"><div id="stage-label" class="hud-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button><button data-action="share" class="game-share" aria-label="게임 공유" aria-haspopup="dialog" title="공유"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg></button></div></div>
       <div id="beer-order" class="beer-order"><div class="ticket-top"><span>ORDER TICKET</span><b id="order-number">01</b></div><strong id="order-name"></strong><p id="order-request"></p><div class="order-recipe"><i id="recipe-liquid"></i><i id="recipe-foam"></i></div><div class="recipe-legend"><span>맥주</span><span>거품</span></div><div id="beer-spill" hidden></div></div>
       <div id="title-overlay" class="beer-intro"><span>SSUN TAPROOM</span><h1>오늘의 한 잔.</h1><p>기울여 따르고, 거품으로 마무리.</p></div>
       <div id="game-status" class="game-status" role="status" aria-live="polite"></div>

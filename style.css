@@ -1257,3 +1257,18 @@ dialog a {
 .beer-score-list { display:flex;gap:10px;margin:15px 0 22px; }
 .beer-score-list span { flex:1;background:#edf2f5;padding:12px 5px;border-radius:4px;font-size:10px;color:#50616a; }
 .beer-score-list b { display:block;font-size:18px;color:#152830;margin-top:7px; }
+.controls .game-share { width:44px;height:44px;pointer-events:auto; }
+.game-share svg { width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round; }
+.share-dialog { background:#fff;color:#152830;max-width:380px;padding:28px 24px; }
+.share-dialog .dialog-close { min-width:44px;min-height:44px;top:4px;right:6px;color:#52616b; }
+.share-dialog h2 { margin:4px 0 8px; }
+.share-dialog p { color:#52616b; }
+.share-options { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px; }
+.share-options button,.share-options a { display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;border-radius:12px;background:#edf2f5;color:#152830;font-size:14px;font-weight:700;text-decoration:none; }
+.share-options a { background:#152830;color:#fff; }
+.share-options span { font-size:22px; }
+.share-options :focus-visible,.share-dialog input:focus-visible { outline:3px solid #ff782d;outline-offset:3px; }
+.share-url-label { display:block;font-size:11px;color:#52616b;margin-bottom:6px; }
+.share-dialog input { width:100%;min-width:0;border:1px solid #dce3e7;border-radius:8px;padding:11px 10px;font-size:12px;background:#f5f7f9;color:#52616b; }
+#share-feedback { min-height:24px;font-size:12px;line-height:1.5;margin:10px 0; }
+@media (max-width:700px) { .beer .hud-left { max-width:calc(100% - 154px);gap:5px; } }
