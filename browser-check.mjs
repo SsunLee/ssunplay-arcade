@@ -91,7 +91,8 @@ try {
     );
     await p.keyboard.up("Space");
     await phase(p, "settle");
-    await p.getByRole("button", { name: "잔 세우기 ↑", exact: true }).click();
+    await p.locator("#game").focus();
+    for (let i = 0; i < 8; i++) await p.keyboard.press("ArrowRight");
     if (i === 0) {
       await p.screenshot({ path: "dist/qa/beer-desktop.png" });
       await p.getByRole("button", { name: "일시 정지", exact: true }).click();

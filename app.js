@@ -574,8 +574,6 @@ document.addEventListener("click", async (e) => {
     $("#result").hidden = true;
     $("#game").focus();
   }
-  if (a === "beer-upright" && active?.kind === "beer") active.g.setAngle(0);
-  if (a === "beer-tilt" && active?.kind === "beer") active.g.setAngle(40);
   if (a === "practice" && active)
     mount("curling", active.g.stage, { practice: true });
   if (a === "pause") togglePause();
@@ -656,7 +654,7 @@ function mountBeer() {
       <div id="beer-order" class="beer-order"><div class="ticket-top"><span>ORDER TICKET</span><b id="order-number">01</b></div><strong id="order-name"></strong><p id="order-request"></p><div class="order-recipe"><i id="recipe-liquid"></i><i id="recipe-foam"></i></div><div class="recipe-legend"><span>맥주</span><span>거품</span></div><div id="beer-spill" hidden></div></div>
       <div id="title-overlay" class="beer-intro"><span>SSUN TAPROOM</span><h1>오늘의 한 잔.</h1><p>기울여 따르고, 거품으로 마무리.</p></div>
       <div id="game-status" class="game-status" role="status" aria-live="polite"></div>
-      <div class="beer-actions"><div class="tilt-actions"><span>잔 기울기 <b id="tilt-angle">35°</b></span><button data-action="beer-tilt" aria-label="↶ 잔 기울이기">↶ 기울이기</button><button data-action="beer-upright" aria-label="잔 세우기 ↑">↑ 세우기</button></div>
+      <div class="beer-actions">
         <button data-action="beer-serve" class="beer-serve" aria-label="서빙"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 10h15l-2 15H7L5 10ZM20 12h3c5 0 5 8-1 8h-3M4 6h16M24 27h5M27 24l3 3-3 3"/></svg><span><b>서빙</b></span><kbd>ENTER</kbd></button>
       </div><div id="result" class="result-overlay" hidden></div>
     </main>`;
@@ -799,7 +797,6 @@ function updateBeerHUD() {
   spillReadout.hidden = g.spilled < 0.001;
   spillReadout.innerHTML = `<span>흘린 맥주 <b>${Math.round(g.spilled * 500)}<small>mL</small></b></span><strong>−${Math.round(g.spillPenalty)}<small>점</small></strong>`;
   $("#order-number").textContent = String(g.round + 1).padStart(2, "0");
-  $("#tilt-angle").textContent = Math.round(g.angle) + "°";
   $("#order-name").textContent = g.order.name;
   $("#order-request").textContent = g.order.request;
   $("#recipe-liquid").style.flex = String(g.order.liquid);
@@ -882,6 +879,6 @@ function showBeerResult() {
 }
 function beerHelp() {
   openDialog(
-    '<span class="eyebrow">HOW TO POUR</span><h2>맥주 잘 따르기</h2><p>위쪽 주문 카드의 맥주·거품 비율을 보고 세 손님의 한 잔을 완성하세요.</p><h3>따르기와 기울기</h3><p>맥주 화면을 누르는 동안 맥주가 나옵니다. 손을 떼면 멈춥니다. 누른 채 왼쪽으로 움직이면 잔이 기울고, 오른쪽으로 움직이면 세워집니다. 기울이기·세우기 버튼도 사용할 수 있어요.</p><p>기울여 따르면 거품이 적게 생깁니다. 마지막에는 잔을 세워 부드러운 거품을 올려보세요. 거품은 기다리면 조금씩 가라앉습니다. 잔을 너무 기울이거나 오래 따르면 넘칩니다.</p><h3>주문 마무리</h3><p>원하는 모양이 되면 <b>서빙</b>를 누르세요. 맥주 양·거품·넘친 양으로 점수를 매깁니다. 세 손님의 평균이 최종 기록입니다. 시간은 처음 따르기 시작할 때부터 흐릅니다.</p><p class="muted small">키보드: Space 누르고 따르기 · ← 기울이기 · → 세우기 · Enter 제출 · R 다시 도전 · Esc 일시 정지</p>',
+    '<span class="eyebrow">HOW TO POUR</span><h2>맥주 잘 따르기</h2><p>위쪽 주문 카드의 맥주·거품 비율을 보고 세 손님의 한 잔을 완성하세요.</p><h3>따르기와 기울기</h3><p>맥주 화면을 누르는 동안 맥주가 나옵니다. 손을 떼면 멈춥니다. 누른 채 왼쪽으로 움직이면 잔이 기울고, 오른쪽으로 움직이면 세워집니다.</p><p>기울여 따르면 거품이 적게 생깁니다. 마지막에는 잔을 세워 부드러운 거품을 올려보세요. 거품은 기다리면 조금씩 가라앉습니다. 잔을 너무 기울이거나 오래 따르면 넘칩니다.</p><h3>주문 마무리</h3><p>원하는 모양이 되면 <b>서빙</b>를 누르세요. 맥주 양·거품·넘친 양으로 점수를 매깁니다. 세 손님의 평균이 최종 기록입니다. 시간은 처음 따르기 시작할 때부터 흐릅니다.</p><p class="muted small">키보드: Space 누르고 따르기 · ← 기울이기 · → 세우기 · Enter 제출 · R 다시 도전 · Esc 일시 정지</p>',
   );
 }

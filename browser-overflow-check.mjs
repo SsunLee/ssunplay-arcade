@@ -21,7 +21,8 @@ let server,browser;const checks=[],errors=[];const record=(name,detail={})=>{che
   const hold=async()=>{if(mobile){const cd=await ctx.newCDPSession(p);const r=await p.locator('#game').boundingBox();await cd.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:r.x+r.width/2,y:r.y+r.height/2}]});return async()=>{await cd.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cd.detach()}}await p.locator('#game').focus();await p.keyboard.down('Space');return ()=>p.keyboard.up('Space')};
   let release=await hold();await p.waitForTimeout(1600);await release();await p.waitForTimeout(700);assert.equal(await p.locator('#game').getAttribute('data-spilled-ml'),'0');record(label+' short controlled pour does not spill');
   await p.screenshot({path:out+'/'+label+'-normal.png'});
-  await p.getByRole('button',{name:'잔 세우기 ↑',exact:true}).click();
+  const scene=await p.locator('#game').boundingBox();
+  await p.mouse.move(scene.x+scene.width*.3,scene.y+scene.height*.5);await p.mouse.down();await p.mouse.move(scene.x+scene.width*.7,scene.y+scene.height*.5,{steps:8});await p.mouse.up();
   release=await hold();await p.waitForFunction(()=>Number(document.querySelector('#game').dataset.spilledMl)>=35,{},{timeout:60000});
   assert.equal(await p.locator('#game').getAttribute('data-overflow-visible'),'true');await p.screenshot({path:out+'/'+label+'-overflow-a.png'});
   await p.waitForTimeout(350);await p.screenshot({path:out+'/'+label+'-overflow-b.png'});record(label+' irregular overflow renders during real pour');
