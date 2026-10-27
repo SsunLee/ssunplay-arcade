@@ -763,6 +763,14 @@ function updateBeerHUD() {
     "손님 " + (g.round + 1) + " / " + BEER_ORDERS.length;
   $("#main-value").innerHTML = Math.ceil(g.remaining) + "<small>초</small>";
   $("#best-value").textContent = "BEST " + (data.beer ? data.beer + "점" : "—");
+  let spillReadout = $("#beer-spill");
+  if (!spillReadout) {
+    spillReadout = document.createElement("div");
+    spillReadout.id = "beer-spill";
+    $("#beer-order").append(spillReadout);
+  }
+  spillReadout.hidden = g.spilled < 0.001;
+  spillReadout.textContent = `흘린 맥주 ${Math.round(g.spilled * 500)}mL · 감점 ${Math.round(g.spillPenalty)}점`;
   $("#order-name").textContent = g.order.name;
   $("#order-request").textContent = g.order.request;
   $("#recipe-liquid").style.flex = String(g.order.liquid);
@@ -831,6 +839,7 @@ function showBeerResult() {
     "<small>점</small></div><p>" +
     esc(r.feedback) +
     "</p>" +
+    (r.spilled > 0.001 ? `<p class="spill-result">흘린 맥주 ${Math.round(r.spilled * 500)}mL · 넘침 감점 −${Math.round(r.spillPenalty)}점</p>` : "") +
     (final
       ? '<div class="beer-score-list">' +
         g.scores

@@ -1345,6 +1345,17 @@ dialog a {
 .beer .bottom-bar {
   background: linear-gradient(transparent, #142d26b3);
 }
+#beer-spill {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  background: #8c251e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-shadow: none;
+}
+.spill-result { color: #a32f25; font-weight: 700; }
 .beer-score-list {
   display: flex;
   gap: 12px;

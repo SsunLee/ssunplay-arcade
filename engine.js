@@ -1102,7 +1102,11 @@ export class BeerGame {
     return true;
   }
   get capacity() {
-    return 1 - 0.24 * Math.sin((this.angle * Math.PI) / 180);
+    // Same rim radius and fill height as BeerView: the downhill rim spills first.
+    return 1 - (0.54 / 1.695) * Math.tan((this.angle * Math.PI) / 180);
+  }
+  get spillPenalty() {
+    return Math.min(30, this.spilled * 120);
   }
   get total() {
     return this.liquid + this.foam;
@@ -1176,7 +1180,7 @@ export class BeerGame {
     this.targetAngle = 0;
     const liquidError = Math.abs(this.liquid - this.order.liquid),
       foamError = Math.abs(this.foam - this.order.foam),
-      spillPenalty = Math.min(30, this.spilled * 120),
+      spillPenalty = this.spillPenalty,
       score = Math.round(
         clamp(100 - liquidError * 125 - foamError * 160 - spillPenalty, 0, 100),
       );
@@ -1199,6 +1203,7 @@ export class BeerGame {
       liquid: this.liquid,
       foam: this.foam,
       spilled: this.spilled,
+      spillPenalty,
       timedOut,
       feedback,
     };

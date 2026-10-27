@@ -99,6 +99,46 @@ test("three served orders produce an average score, single submission only", () 
   assert.equal(g.result.rounds.length, 3);
   assert.equal(g.next(), false);
 });
+
+test("upright overpour spills, stopping ends runoff, and score keeps the spill penalty", () => {
+  const g = new BeerGame(42);
+  g.setAngle(0);
+  advance(g, 1);
+  g.setPour(true);
+  advance(g, 12);
+  assert.ok(g.spilled > 0.1);
+  assert.ok(g.spillFlash > 0.9);
+  g.setPour(false);
+  advance(g, 2);
+  assert.equal(g.spillFlash, 0);
+  const spilled = g.spilled;
+  advance(g, 1);
+  assert.equal(g.spilled, spilled);
+  const clean = new BeerGame(42);
+  clean.started = true;
+  clean.liquid = g.liquid;
+  clean.foam = g.foam;
+  clean.serve();
+  g.serve();
+  assert.ok(g.roundResult.score < clean.roundResult.score);
+  assert.ok(g.roundResult.spillPenalty > 0);
+  g.next();
+  assert.equal(g.spilled, 0);
+  assert.equal(g.spillFlash, 0);
+});
+
+test("tilting a nearly full upright glass spills even with the tap closed", () => {
+  const g = new BeerGame(42);
+  g.angle = g.targetAngle = 0;
+  g.liquid = 0.8;
+  g.foam = 0.1;
+  g.started = true;
+  g.setAngle(55);
+  advance(g, 1);
+  assert.ok(g.spilled > 0.1);
+  assert.ok(g.total <= g.capacity + 1e-6);
+  assert.equal(g.pouring, false);
+});
 test("order timeout scores current glass and does not run in background", () => {
   const g = new BeerGame(42);
   g.setPour(true);
