@@ -1,6 +1,7 @@
 import * as T from "three";
 import { Factory, noiseTexture } from "./models.js";
 import { clamp, lerp } from "./engine.js";
+import { BeerOverflow } from "./beer-overflow.js";
 const up = new T.Vector3(0, 1, 0),
   dir = new T.Vector3();
 function vesselGeometry() {
@@ -314,29 +315,18 @@ export class BeerView {
     this.glass.add(this.bubbles);
     this.bubbles.renderOrder = 3;
     this.stream = F.mesh(
-      new T.CylinderGeometry(0.036, 0.025, 1, 12),
-      new T.MeshStandardMaterial({
-        color: 0xf3be43,
+      new T.CylinderGeometry(0.036, 0.025, 1, 12, 24),
+      new T.MeshPhysicalMaterial({
+        color: 0xfbb52e,
         transparent: true,
-        opacity: 0.8,
-        roughness: 0.1,
+        opacity: 0.76,
+        roughness: 0.07,
+        clearcoat: 1,
       }),
       root,
     );
     this.stream.castShadow = false;
-    this.puddle = F.mesh(
-      new T.CircleGeometry(1, 48),
-      new T.MeshStandardMaterial({
-        color: 0xbf8a23,
-        transparent: true,
-        opacity: 0.48,
-        roughness: 0.14,
-        depthWrite: false,
-      }),
-      root,
-      [0, 0.075, 0.15],
-    );
-    this.puddle.rotation.x = -Math.PI / 2;
+    this.streamBase = this.stream.geometry.attributes.position.array.slice();
     const napkin = F.cube(
       root,
       [0.62, 0.022, 0.7],
@@ -350,25 +340,7 @@ export class BeerView {
       root,
       [-1.7, 0.08, 0.45],
     );
-    this.drips = new T.InstancedMesh(
-      new T.SphereGeometry(0.032, 8, 6),
-      new T.MeshStandardMaterial({
-        color: 0xffe6a6,
-        transparent: true,
-        opacity: 0.78,
-      }),
-      14,
-    );
-    root.add(this.drips);
-    // Continuous streams start at the actual downhill rim, not floating dots.
-    this.spillRibbons = [];
-    const runoff = new T.MeshStandardMaterial({ color: 0xfff7e8, roughness: 0.48 });
-    for (let i = 0; i < 7; i++) {
-      const ribbon = F.mesh(new T.CylinderGeometry(1, 0.65, 1, 10), runoff, root);
-      const lip = F.sphere(root, [0.1, 0.07, 0.1], [0, 0, 0], runoff);
-      this.spillRibbons.push({ ribbon, lip });
-    }
-    this.spillRim = new T.Vector3();
+    this.overflow = new BeerOverflow(root, this.glass);
     this.dummy = new T.Object3D();
   }
   resize() {
@@ -383,7 +355,7 @@ export class BeerView {
       portrait ? 2.7 : 3.0,
       portrait ? 6.8 : 5.3,
     );
-    this.camera.lookAt(-0.05, 1.45, 0);
+    this.camera.lookAt(-0.05, portrait ? 1.35 : 1.05, 0);
     this.camera.updateProjectionMatrix();
   }
   render(dt) {
@@ -428,52 +400,24 @@ export class BeerView {
       0.72 + g.flow * 2.5,
     );
     this.stream.quaternion.setFromUnitVectors(up, dir.normalize());
+    const flowPositions = this.stream.geometry.attributes.position;
+    for (let i = 0; i < flowPositions.count; i++) {
+      const x=this.streamBase[i*3], y=this.streamBase[i*3+1], z=this.streamBase[i*3+2];
+      const pulse=1+.13*Math.sin(y*26-t*19)+.05*Math.sin(y*47-t*27);
+      flowPositions.setXYZ(i,x*pulse+Math.sin(y*17-t*12)*.002,y,z*pulse);
+    }
+    flowPositions.needsUpdate=true;
     this.lever.rotation.x = lerp(
       this.lever.rotation.x,
       g.pouring ? -0.6 : 0,
       1 - Math.exp(-dt * 12),
     );
-    this.puddle.visible = g.spilled > 0.001;
-    this.puddle.position.x = this.glass.position.x - Math.sin(angle) * 1.78;
-    this.puddle.scale.set(0.65 + Math.sqrt(g.spilled) * 2.2, 0.45 + Math.sqrt(g.spilled) * 1.4, 1);
-    this.puddle.material.opacity = 0.65;
-    this.glass.updateMatrixWorld(true);
-    const spillStrength = clamp(g.spillFlash, 0, 1);
-    for (let i = 0; i < this.spillRibbons.length; i++) {
-      const { ribbon, lip } = this.spillRibbons[i];
-      // Upright: front half of the rim. Tilted: cluster around its lowest edge.
-      const phase = angle > 0.12 ? Math.PI - 0.3 + i * 0.1 : 0.2 + i * 0.43;
-      this.spillRim.set(Math.cos(phase) * 0.55, 1.78, Math.sin(phase) * 0.55);
-      this.glass.localToWorld(this.spillRim);
-      const length = Math.max(0.05, this.spillRim.y - 0.09);
-      ribbon.visible = lip.visible = spillStrength > 0.02;
-      const width = (0.025 + 0.018 * (1 + Math.sin(t * 11 + i))) * spillStrength;
-      ribbon.position.copy(this.spillRim);
-      ribbon.position.y -= length / 2;
-      ribbon.scale.set(width, length, width * 0.8);
-      lip.position.copy(this.spillRim);
-      const swell = spillStrength * (0.8 + Math.sin(t * 6 + i) * 0.2);
-      lip.scale.set(0.1 * swell, 0.07 * swell, 0.1 * swell);
-    }
-    for (let i = 0; i < 14; i++) {
-      const a = i * 2.4,
-        r = 0.58,
-        life = (t * 1.8 + i * 0.17) % 1;
-      this.dummy.position.set(
-        this.glass.position.x - Math.sin(angle) * 1.7 + Math.cos(a) * r,
-        Math.max(0.09, 1.5 - life * 1.6),
-        0.15 + Math.sin(a) * r,
-      );
-      this.dummy.scale.setScalar(g.spillFlash > 0.05 ? 1 : 0);
-      this.dummy.updateMatrix();
-      this.drips.setMatrixAt(i, this.dummy.matrix);
-    }
-    this.drips.instanceMatrix.needsUpdate = true;
+    this.overflow.render(g, dt);
     this.renderer.render(this.scene, this.camera);
     this.canvas.dataset.phase = g.phase;
     this.canvas.dataset.triangles = String(this.renderer.info.render.triangles);
     this.canvas.dataset.spilledMl = String(Math.round(g.spilled * 500));
-    this.canvas.dataset.overflowVisible = String(spillStrength > 0.02);
+    this.canvas.dataset.overflowVisible = String(this.overflow.activity > 0.025);
   }
   destroy() {
     if (this.dead) return;

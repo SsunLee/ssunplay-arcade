@@ -104,7 +104,7 @@ try {
       record("beer-pause-stops-flow-and-time");
     }
     await p
-      .getByRole("button", { name: "이 잔 드리기 ↗", exact: true })
+      .getByRole("button", { name: "서빙", exact: true })
       .click();
     await p.locator("#result").waitFor({ state: "visible" });
     const score = parseInt(await p.locator(".result-value").innerText());

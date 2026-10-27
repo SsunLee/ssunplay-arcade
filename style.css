@@ -1184,313 +1184,135 @@ dialog a {
 .beer-card {
   background: #203634;
 }
-.beer .hud-left {
-  filter: drop-shadow(0 2px 2px #071c17);
+/* Taproom: printed order ticket and physical arcade controls. */
+.beer { --tap-ink:#152830; --tap-orange:#ff782d; --tap-white:#ffffff; }
+.beer .hud { top:20px; }
+.beer .hud-left { filter:drop-shadow(0 2px 3px #071b21); }
+.beer .hud-label { font-size:11px; letter-spacing:.12em; }
+.beer .main-value { font-size:52px; font-variant-numeric:tabular-nums; }
+.beer .main-value small { font-size:18px; }
+.beer .best-value { font-size:11px; opacity:.85; }
+.beer .controls { pointer-events:auto; gap:10px; }
+.beer .controls button { width:44px;height:44px;border-radius:8px;background:#fff;color:var(--tap-ink);border:2px solid var(--tap-ink);box-shadow:0 3px 0 var(--tap-ink); }
+.beer button:focus-visible { outline:3px solid #fff;outline-offset:4px; }
+.beer-order { position:absolute;top:143px;left:28px;width:228px;padding:15px 18px 20px;background:#fff;color:var(--tap-ink);pointer-events:none;filter:drop-shadow(3px 5px 0 #071b2140);clip-path:polygon(0 0,100% 0,100% 96%,95% 100%,90% 96%,85% 100%,80% 96%,75% 100%,70% 96%,65% 100%,60% 96%,55% 100%,50% 96%,45% 100%,40% 96%,35% 100%,30% 96%,25% 100%,20% 96%,15% 100%,10% 96%,5% 100%,0 96%); }
+.ticket-top { display:flex;align-items:center;justify-content:space-between;border-bottom:1px dashed #b7c0c4;padding-bottom:8px;margin-bottom:10px; }
+.ticket-top span { font-size:10px;font-weight:800;letter-spacing:.13em; }
+.ticket-top b { font-size:23px;line-height:1;color:#e44f15;font-variant-numeric:tabular-nums; }
+.beer-order > strong { display:block;font-size:19px;letter-spacing:-.7px; }
+.beer-order p { margin:7px 0 11px;font-size:11px;line-height:1.55;color:#506169; }
+.order-recipe { height:8px;display:flex;overflow:hidden;background:#dce3e7;border:1px solid #b8c3c8;border-radius:0; }
+.order-recipe i:first-child { background:#ef9e16; }
+.order-recipe i:last-child { background:#f2f5f7; }
+.recipe-legend { display:flex;justify-content:space-between;color:#65747b;font-size:9px;margin-top:5px; }
+#beer-spill { display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px dashed #b7c0c4;margin-top:10px;padding-top:9px;color:#b83022; }
+#beer-spill[hidden] { display:none; }
+#beer-spill > span { display:flex;flex-direction:column;font-size:9px;gap:2px; }
+#beer-spill b { font-size:16px; }
+#beer-spill > strong { font-size:25px;letter-spacing:-1px;font-variant-numeric:tabular-nums; }
+#beer-spill small { font-size:10px;margin-left:2px;letter-spacing:0; }
+.beer-intro { position:absolute;left:50%;top:25%;transform:translateX(-50%);text-align:center;pointer-events:none;color:#fff;width:max-content;max-width:95%;text-shadow:0 3px 0 #13242e,0 6px 22px #13242e;transition:opacity .18s; }
+.beer-intro > span { font-size:11px;font-weight:800;letter-spacing:.25em;color:#ff9b57; }
+.beer-intro h1 { margin:10px 0;font-size:clamp(32px,4vw,54px);letter-spacing:-2px;font-weight:900; }
+.beer-intro p { font-size:12px;margin:0; }
+.beer-actions { position:absolute;left:50%;bottom:18px;transform:translateX(-50%);width:460px;max-width:calc(100% - 28px);padding:12px 14px 16px;background:var(--tap-ink);border:1px solid #607076;border-radius:10px;box-shadow:0 6px 0 #0a171d,0 10px 24px #0005;display:grid;grid-template-columns:1.16fr 1fr;gap:10px; }
+.tap-console-title { grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px; }
+.tap-console-title > span { font-size:9px;letter-spacing:.16em;color:#bfcbd0;font-weight:800; }
+.tap-console-title button { color:#e1e9ec;padding:0;font-size:10px;min-height:24px; }
+.tap-console-title button b { display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border:1px solid #8e9fa7;border-radius:50%;margin-left:3px; }
+.tilt-actions { display:flex;align-items:center;grid-column:1/-1;gap:8px;border-top:1px solid #42535c;padding-top:9px; }
+.tilt-actions > span { margin-right:auto;color:#d4dfe5;font-size:11px; }
+.tilt-actions > span b { display:inline-block;color:#fff;width:31px;font-size:14px;margin-left:6px;font-variant-numeric:tabular-nums; }
+.tilt-actions button { min-height:44px;padding:7px 12px;background:#314650;border:1px solid #7d929b;border-bottom:3px solid #0a1921;color:#fff;border-radius:5px;font-size:11px;font-weight:700;touch-action:manipulation; }
+.tilt-actions button:active { transform:translateY(2px);border-bottom-width:1px; }
+.beer-pour,.beer-serve { position:relative;display:flex;align-items:center;justify-content:center;gap:10px;min-height:72px;border:2px solid #091b24;border-radius:7px;padding:12px 8px;line-height:1.2;text-align:left;transition:transform .09s,box-shadow .09s,background .09s; }
+.beer-pour { background:var(--tap-orange);color:#172832;box-shadow:0 5px 0 #b53b0f,inset 0 2px 0 #ffbb80;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none; }
+.beer-serve { background:#fff;color:var(--tap-ink);box-shadow:0 5px 0 #9cabb1,inset 0 2px 0 #fff; }
+.beer-pour svg,.beer-serve svg { width:31px;height:31px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0; }
+.beer-pour span,.beer-serve span { display:flex;flex-direction:column;gap:4px; }
+.beer-pour b,.beer-serve b { font-size:22px;font-weight:900;letter-spacing:-1px; }
+.beer-pour small,.beer-serve small { font-size:10px;font-weight:600;opacity:.8; }
+.beer-actions kbd { position:absolute;right:5px;top:4px;font:8px ui-monospace,monospace;opacity:.55; }
+.beer-pour.held,.beer-pour:active { transform:translateY(4px);box-shadow:0 1px 0 #b53b0f,inset 0 2px 5px #9f2b1d44;background:#ff973d; }
+.beer-serve:not(:disabled):active { transform:translateY(4px);box-shadow:0 1px 0 #9cabb1; }
+.beer-pour:disabled,.beer-serve:disabled { opacity:.48;cursor:not-allowed;box-shadow:0 2px 0 #62717a;transform:translateY(3px); }
+.beer .game-status { top:19%;left:63%;min-width:0;max-width:300px;width:max-content;white-space:normal;padding:8px 14px;border-radius:4px;background:#e94827;color:#fff;box-shadow:0 3px 0 #84231b;font-size:12px;line-height:1.4; }
+.beer .result-card { background:#fff;border:3px solid #152830;border-radius:9px;box-shadow:6px 7px 0 #091b2470;color:#152830; }
+.beer .result-card .primary { background:#ff782d;color:#152830;font-weight:900;box-shadow:0 4px 0 #bd410f;border-radius:5px; }
+.beer .result-card .secondary { background:#edf2f5;color:#152830;border-radius:5px; }
+.beer .result-value { color:#e65c20; }
+.spill-result { color:#b83022!important;font-weight:700; }
+.beer-score-list { display:flex;gap:10px;margin:15px 0 22px; }
+.beer-score-list span { flex:1;background:#edf2f5;padding:12px 5px;border-radius:4px;font-size:10px;color:#50616a; }
+.beer-score-list b { display:block;font-size:18px;color:#152830;margin-top:7px; }
+@media (max-width:1050px) and (min-width:701px) {
+ .game-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .beer-order { width:205px; }
+ .beer-intro { left:62%; }
 }
-.beer .controls {
-  pointer-events: auto;
+@media (max-width:700px) {
+ .game-grid { grid-template-columns:1fr; }
+ .card-visual { height:260px; }
+ .beer .hud { top:14px;left:14px;right:14px; }
+ .beer .hud-label { font-size:10px; }
+ .beer .main-value { font-size:42px; }
+ .beer .best-value { font-size:9px;margin-top:4px; }
+ .beer .controls { gap:7px; }
+ .beer-order { left:14px;top:111px;width:186px;padding:11px 13px 16px; }
+ .ticket-top { padding-bottom:6px;margin-bottom:7px; }
+ .ticket-top span { font-size:8px; }
+ .ticket-top b { font-size:20px; }
+ .beer-order > strong { font-size:16px; }
+ .beer-order p { margin:5px 0 8px;font-size:10px; }
+ .order-recipe { height:6px; }
+ .recipe-legend { font-size:8px; }
+ #beer-spill { margin-top:7px;padding-top:6px; }
+ #beer-spill > strong { font-size:22px; }
+ #beer-spill b { font-size:14px; }
+ .beer-intro { top:38%;left:56%; }
+ .beer-intro > span { font-size:9px; }
+ .beer-intro h1 { font-size:33px;margin:7px 0; }
+ .beer-intro p { font-size:10px; }
+ .beer-actions { width:calc(100% - 24px);max-width:410px;bottom:max(14px,env(safe-area-inset-bottom));padding:9px 10px 13px;gap:8px;border-radius:8px; }
+ .tap-console-title > span { font-size:8px; }
+ .tilt-actions { padding-top:7px;gap:6px; }
+ .tilt-actions > span { font-size:10px; }
+ .tilt-actions button { min-height:44px;font-size:10px;padding:7px 10px; }
+ .beer-pour,.beer-serve { min-height:66px;gap:7px;padding:10px 5px; }
+ .beer-pour b,.beer-serve b { font-size:21px; }
+ .beer-pour small,.beer-serve small { font-size:9px; }
+ .beer-pour svg,.beer-serve svg { width:26px;height:26px; }
+ .beer-actions kbd { display:none; }
+ .beer .game-status { top:14%;left:auto;right:14px;transform:none;max-width:145px;font-size:11px;padding:8px 10px; }
 }
-.beer-order {
-  position: absolute;
-  left: 28px;
-  top: 145px;
-  width: 270px;
-  padding: 17px 20px 15px;
-  background: #fff9e9f2;
-  border: 1px solid #f6e7b580;
-  border-radius: 11px;
-  box-shadow: 0 7px 28px #071e1729;
-  color: #29473a;
-  pointer-events: none;
+@media (max-height:700px) and (max-width:700px) {
+ .beer-order { top:91px;padding-top:8px;padding-bottom:13px; }
+ .beer .main-value { font-size:33px; }
+ .beer .hud-label { font-size:9px; }
+ .beer-order p { display:none; }
+ .ticket-top { margin-bottom:5px;padding-bottom:5px; }
+ .beer-order > strong { font-size:14px;margin-bottom:6px; }
+ .tap-console-title { display:none; }
+ .beer-actions { padding-top:8px; }
+ .tilt-actions { border-top:0;padding-top:0; }
+ .beer-intro { top:40%; }
 }
-.beer-order > span {
-  display: block;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  color: #9a865a;
-  margin-bottom: 7px;
+@media (max-height:550px) and (orientation:landscape) {
+ .beer .hud { top:12px;left:16px;right:16px; }
+ .beer .main-value { font-size:35px; }
+ .beer-order { left:16px;top:112px;width:195px;padding:10px 13px 16px; }
+ .beer-order p { display:none; }
+ .beer-order > strong { font-size:15px;margin-bottom:7px; }
+ .beer-actions { left:auto;right:14px;bottom:12px;transform:none;width:310px;padding:8px 10px 12px; }
+ .tap-console-title { display:none; }
+ .tilt-actions { border:0;padding:0; }
+ .tilt-actions button { min-height:38px;padding:5px 7px;font-size:10px; }
+ .beer-pour,.beer-serve { min-height:58px; }
+ .beer-pour b,.beer-serve b { font-size:18px; }
+ .beer-pour svg,.beer-serve svg { width:23px;height:23px; }
+ .beer-actions kbd { display:none; }
+ .beer-intro { top:18%;left:52%; }
+ .beer-intro h1 { font-size:30px; }
+ .beer .game-status { top:8%;left:50%;right:auto;transform:translateX(-50%); }
 }
-.beer-order strong {
-  font-size: 17px;
-  letter-spacing: -0.5px;
-}
-.beer-order p {
-  font-size: 11px;
-  line-height: 1.7;
-  margin: 8px 0 12px;
-  color: #71806a;
-}
-.order-recipe {
-  height: 11px;
-  display: flex;
-  overflow: hidden;
-  border-radius: 4px;
-  border: 1px solid #d9cda6;
-}
-.order-recipe i:first-child {
-  background: #dca327;
-}
-.order-recipe i:last-child {
-  background: #fff7de;
-}
-.recipe-legend {
-  display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  margin-top: 5px;
-  color: #9d906c;
-}
-.beer-intro {
-  position: absolute;
-  top: 25%;
-  left: 50%;
-  transform: translateX(-50%);
-  text-align: center;
-  width: max-content;
-  max-width: 95%;
-  pointer-events: none;
-  transition: opacity 0.2s;
-  color: #fff6d9;
-  text-shadow: 0 2px 5px #122e25;
-}
-.beer-intro > span {
-  font-size: 10px;
-  letter-spacing: 0.23em;
-  font-weight: 700;
-}
-.beer-intro h1 {
-  font-size: clamp(36px, 5vw, 63px);
-  margin: 9px 0 8px;
-  letter-spacing: -2px;
-  -webkit-text-stroke: 3px #223d33;
-  paint-order: stroke fill;
-}
-.beer-intro p {
-  font-size: 14px;
-  font-weight: 700;
-  margin: 0;
-}
-.beer-actions {
-  position: absolute;
-  bottom: 53px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 350px;
-  max-width: calc(100% - 36px);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  align-items: stretch;
-}
-.tilt-actions {
-  grid-column: 1/-1;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-.tilt-actions button {
-  border: 1px solid #f8edcd70;
-  background: #213e34e6;
-  color: #fff1cf;
-  padding: 8px 14px;
-  border-radius: 18px;
-  font-size: 10px;
-  font-weight: 700;
-  touch-action: manipulation;
-}
-.beer-pour,
-.beer-serve {
-  border-radius: 9px;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.5;
-  padding: 14px 10px;
-  box-shadow: 0 5px 18px #152a1c35;
-}
-.beer-pour {
-  background: #efd77a;
-  color: #293c27;
-  touch-action: none;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-.beer-pour.held {
-  background: #f8bc42;
-  transform: translateY(2px);
-  box-shadow: 0 2px 5px #152a1c35;
-}
-.beer-serve {
-  background: #f6f2df;
-  color: #315541;
-}
-.beer-pour:disabled,
-.beer-serve:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-.beer-actions > span {
-  grid-column: 1/-1;
-  text-align: center;
-  color: #f7ebc4c9;
-  font-size: 9px;
-  text-shadow: 0 1px 3px #112e26;
-}
-.beer .game-status {
-  top: 12%;
-  background: #7e4720e6;
-}
-.beer .bottom-bar {
-  background: linear-gradient(transparent, #142d26b3);
-}
-#beer-spill {
-  margin-top: 8px;
-  padding: 7px 10px;
-  border-radius: 7px;
-  background: #8c251e;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  text-shadow: none;
-}
-.spill-result { color: #a32f25; font-weight: 700; }
-.beer-score-list {
-  display: flex;
-  gap: 12px;
-  margin: 15px 0 22px;
-}
-.beer-score-list span {
-  flex: 1;
-  background: #efefdf;
-  padding: 12px 5px;
-  border-radius: 7px;
-  font-size: 10px;
-  color: #869177;
-}
-.beer-score-list b {
-  display: block;
-  font-size: 18px;
-  color: #36543c;
-  margin-top: 7px;
-}
-@media (max-width: 1050px) and (min-width: 701px) {
-  .game-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .beer-order {
-    width: 230px;
-    top: 142px;
-  }
-  .beer-intro {
-    left: 62%;
-    top: 26%;
-  }
-  .beer-intro h1 {
-    font-size: 43px;
-  }
-}
-@media (max-width: 700px) {
-  .game-grid {
-    grid-template-columns: 1fr;
-  }
-  .card-visual {
-    height: 260px;
-  }
-  .beer-order {
-    left: 16px;
-    top: 112px;
-    width: 218px;
-    padding: 12px 15px;
-  }
-  .beer-order > span {
-    font-size: 8px;
-  }
-  .beer-order strong {
-    font-size: 14px;
-  }
-  .beer-order p {
-    font-size: 10px;
-    margin: 6px 0 8px;
-  }
-  .order-recipe {
-    height: 8px;
-  }
-  .beer-intro {
-    top: 37%;
-    left: 50%;
-  }
-  .beer-intro h1 {
-    font-size: 37px;
-    letter-spacing: -1.5px;
-  }
-  .beer-intro > span {
-    font-size: 8px;
-  }
-  .beer-intro p {
-    font-size: 12px;
-  }
-  .beer-actions {
-    bottom: 57px;
-    width: 330px;
-  }
-  .beer-actions > span {
-    font-size: 9px;
-  }
-  .beer-pour,
-  .beer-serve {
-    font-size: 11px;
-    padding: 13px 7px;
-  }
-  .beer .game-status {
-    top: 9%;
-    font-size: 11px;
-    left: 68%;
-    min-width: 130px;
-    max-width: 57%;
-  }
-}
-@media (max-height: 550px) and (orientation: landscape) {
-  .beer-order {
-    top: 15px;
-    left: auto;
-    right: 90px;
-    width: 225px;
-    padding: 10px 15px;
-  }
-  .beer-order p {
-    margin: 5px 0;
-  }
-  .beer-intro {
-    top: 24%;
-    left: 58%;
-  }
-  .beer-intro h1 {
-    font-size: 36px;
-  }
-  .beer-actions {
-    width: 330px;
-    bottom: 32px;
-    left: 72%;
-  }
-  .tilt-actions {
-    margin: 0;
-  }
-  .tilt-actions button {
-    padding: 5px 10px;
-    font-size: 9px;
-  }
-  .beer-pour,
-  .beer-serve {
-    padding: 8px;
-    font-size: 10px;
-  }
-  .beer-actions > span {
-    display: none;
-  }
-  .beer .game-status {
-    top: 17%;
-    left: 45%;
-  }
-}
+@media (prefers-reduced-motion:reduce) { .beer button,.beer-intro { transition:none; } }

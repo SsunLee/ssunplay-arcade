@@ -139,6 +139,20 @@ test("tilting a nearly full upright glass spills even with the tap closed", () =
   assert.ok(g.total <= g.capacity + 1e-6);
   assert.equal(g.pouring, false);
 });
+
+test("spill penalty keeps growing past 30 and 100 while final score stays nonnegative", () => {
+  const g = new BeerGame(42);
+  for (const [ml, penalty] of [[0,0],[50,10],[150,30],[300,60],[668,133.6],[1000,200]]) {
+    g.spilled = ml / 500;
+    assert.ok(Math.abs(g.spillPenalty - penalty) < 1e-8);
+  }
+  g.started = true;
+  g.liquid = g.order.liquid;
+  g.foam = g.order.foam;
+  assert.equal(g.serve(),true);
+  assert.equal(g.roundResult.score,0);
+  assert.equal(g.roundResult.spillPenalty,200);
+});
 test("order timeout scores current glass and does not run in background", () => {
   const g = new BeerGame(42);
   g.setPour(true);

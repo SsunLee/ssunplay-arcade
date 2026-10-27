@@ -1106,7 +1106,8 @@ export class BeerGame {
     return 1 - (0.54 / 1.695) * Math.tan((this.angle * Math.PI) / 180);
   }
   get spillPenalty() {
-    return Math.min(30, this.spilled * 120);
+    // A 500mL glass: each 5mL wasted costs one point, with no penalty cap.
+    return this.spilled * 100;
   }
   get total() {
     return this.liquid + this.foam;
@@ -1147,7 +1148,10 @@ export class BeerGame {
     this.liquid += decay / 3.5;
     const overflow = Math.max(0, this.total - this.capacity);
     if (overflow > 0) {
-      const foamLoss = Math.min(this.foam, overflow);
+      // Fresh foam remains at the surface while the tap is running; excess
+      // drains over the rim as foam and beer instead of erasing the head entirely.
+      const surfaceHead = this.flow > 0.005 ? 0.035 : 0;
+      const foamLoss = Math.min(Math.max(0, this.foam - surfaceHead), overflow);
       this.foam -= foamLoss;
       this.liquid -= overflow - foamLoss;
       this.spilled += foamLoss / 3.5 + (overflow - foamLoss);

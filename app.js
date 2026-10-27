@@ -631,7 +631,18 @@ function mountBeer() {
   document.title = "맥주 잘 따르기 | 쑨플레이";
   app.innerHTML =
     header("beer") +
-    '<main id="main" class="game-shell beer"><canvas id="game" tabindex="0" aria-label="맥주 따르기: 누르고 좌우로 움직여 잔의 기울기를 조절하세요"></canvas><div class="hud"><div class="hud-left"><div id="stage-label" class="hud-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button></div></div><div id="beer-order" class="beer-order"><span>오늘의 주문</span><strong id="order-name"></strong><p id="order-request"></p><div class="order-recipe"><i id="recipe-liquid"></i><i id="recipe-foam"></i></div><div class="recipe-legend"><span>맥주</span><span>거품</span></div></div><div id="title-overlay" class="beer-intro"><span>ONE PERFECT POUR</span><h1>맥주 잘 따르기</h1><p>기울이면 맥주, 세우면 거품.</p></div><div id="game-status" class="game-status" role="status" aria-live="polite"></div><div class="beer-actions"><div class="tilt-actions"><button data-action="beer-tilt">↶ 잔 기울이기</button><button data-action="beer-upright">잔 세우기 ↑</button></div><button id="beer-pour" class="beer-pour" aria-label="누르고 맥주 따르기">누르고 따르기</button><button data-action="beer-serve" class="beer-serve">이 잔 드리기 ↗</button><span>누른 채 좌우로 움직여도 잔을 기울일 수 있어요.</span></div><div id="result" class="result-overlay" hidden></div><div class="bottom-bar"><span>왼쪽으로 기울이기 · 오른쪽으로 세우기 · 손을 떼면 멈춰요.</span><button data-action="help">조작 방법 ?</button></div></main>';
+    `<main id="main" class="game-shell beer">
+      <canvas id="game" tabindex="0" aria-label="맥주 따르기: 누르고 좌우로 움직여 잔의 기울기를 조절하세요"></canvas>
+      <div class="hud"><div class="hud-left"><div id="stage-label" class="hud-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button></div></div>
+      <div id="beer-order" class="beer-order"><div class="ticket-top"><span>ORDER TICKET</span><b id="order-number">01</b></div><strong id="order-name"></strong><p id="order-request"></p><div class="order-recipe"><i id="recipe-liquid"></i><i id="recipe-foam"></i></div><div class="recipe-legend"><span>맥주</span><span>거품</span></div><div id="beer-spill" hidden></div></div>
+      <div id="title-overlay" class="beer-intro"><span>SSUN TAPROOM</span><h1>오늘의 한 잔.</h1><p>기울여 따르고, 거품으로 마무리.</p></div>
+      <div id="game-status" class="game-status" role="status" aria-live="polite"></div>
+      <div class="beer-actions"><div class="tap-console-title"><span>THE PERFECT POUR</span><button data-action="help" aria-label="맥주 조작 방법">조작법 <b>?</b></button></div>
+        <div class="tilt-actions"><span>잔 기울기 <b id="tilt-angle">35°</b></span><button data-action="beer-tilt" aria-label="↶ 잔 기울이기">↶ 기울이기</button><button data-action="beer-upright" aria-label="잔 세우기 ↑">↑ 세우기</button></div>
+        <button id="beer-pour" class="beer-pour" aria-label="누르고 맥주 따르기"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M6 12h17v6h-6v4M10 12V7h8M14 7V3M9 3h10M5 26h18M17 26v-1"/></svg><span><b id="pour-label">따르기</b><small id="pour-hint">누르고 있기</small></span><kbd>SPACE</kbd></button>
+        <button data-action="beer-serve" class="beer-serve" aria-label="서빙"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 10h15l-2 15H7L5 10ZM20 12h3c5 0 5 8-1 8h-3M4 6h16M24 27h5M27 24l3 3-3 3"/></svg><span><b>서빙</b><small>완성한 잔 보내기</small></span><kbd>ENTER</kbd></button>
+      </div><div id="result" class="result-overlay" hidden></div>
+    </main>`;
   const g = new BeerGame();
   let view;
   try {
@@ -702,6 +713,15 @@ function bindBeerInput(a) {
       options,
     );
   }
+  button.addEventListener("keydown", (e) => {
+    if (!["Space", "Enter"].includes(e.code)) return;
+    e.preventDefault();
+    if (!e.repeat) g.setPour(true);
+  }, options);
+  button.addEventListener("keyup", (e) => {
+    if (["Space", "Enter"].includes(e.code)) { e.preventDefault(); g.setPour(false); }
+  }, options);
+  button.addEventListener("blur", () => g.setPour(false), options);
   window.addEventListener(
     "keydown",
     (e) => {
@@ -770,19 +790,21 @@ function updateBeerHUD() {
     $("#beer-order").append(spillReadout);
   }
   spillReadout.hidden = g.spilled < 0.001;
-  spillReadout.textContent = `흘린 맥주 ${Math.round(g.spilled * 500)}mL · 감점 ${Math.round(g.spillPenalty)}점`;
+  spillReadout.innerHTML = `<span>흘린 맥주 <b>${Math.round(g.spilled * 500)}<small>mL</small></b></span><strong>−${Math.round(g.spillPenalty)}<small>점</small></strong>`;
+  $("#order-number").textContent = String(g.round + 1).padStart(2, "0");
+  $("#tilt-angle").textContent = Math.round(g.angle) + "°";
   $("#order-name").textContent = g.order.name;
   $("#order-request").textContent = g.order.request;
   $("#recipe-liquid").style.flex = String(g.order.liquid);
   $("#recipe-foam").style.flex = String(g.order.foam);
   $("#title-overlay").classList.toggle("gone", g.started);
   $("#beer-pour").classList.toggle("held", g.pouring);
-  $("#beer-pour").textContent = g.pouring
-    ? "따르는 중 · 손을 떼면 멈춤"
-    : "누르고 따르기";
+  $("#beer-pour").setAttribute("aria-pressed", String(g.pouring));
+  $("#pour-label").textContent = g.pouring ? "따르는 중" : "따르기";
+  $("#pour-hint").textContent = g.pouring ? "손을 떼면 멈춰요" : "누르고 있기";
   $("#beer-pour").disabled = ["paused", "tasting", "result"].includes(g.phase);
   $('[data-action="beer-serve"]').disabled =
-    ["paused", "tasting", "result"].includes(g.phase) || !g.started;
+    ["paused", "tasting", "result"].includes(g.phase) || !g.started || g.total < 0.04;
   const status =
     g.phase === "paused"
       ? "일시 정지"
@@ -858,6 +880,6 @@ function showBeerResult() {
 }
 function beerHelp() {
   openDialog(
-    '<span class="eyebrow">HOW TO POUR</span><h2>맥주 잘 따르기</h2><p>위쪽 주문 카드의 맥주·거품 비율을 보고 세 손님의 한 잔을 완성하세요.</p><h3>따르기와 기울기</h3><p>화면이나 아래 버튼을 누르는 동안 맥주가 나옵니다. 손을 떼면 멈춥니다. 누른 채 왼쪽으로 움직이면 잔이 기울고, 오른쪽으로 움직이면 세워집니다. 기울이기·세우기 버튼도 사용할 수 있어요.</p><p>기울여 따르면 거품이 적게 생깁니다. 마지막에는 잔을 세워 부드러운 거품을 올려보세요. 거품은 기다리면 조금씩 가라앉습니다. 잔을 너무 기울이거나 오래 따르면 넘칩니다.</p><h3>주문 마무리</h3><p>원하는 모양이 되면 <b>이 잔 드리기</b>를 누르세요. 맥주 양·거품·넘친 양으로 점수를 매깁니다. 세 손님의 평균이 최종 기록입니다. 시간은 처음 따르기 시작할 때부터 흐릅니다.</p><p class="muted small">키보드: Space 누르고 따르기 · ← 기울이기 · → 세우기 · Enter 제출 · R 다시 도전 · Esc 일시 정지</p>',
+    '<span class="eyebrow">HOW TO POUR</span><h2>맥주 잘 따르기</h2><p>위쪽 주문 카드의 맥주·거품 비율을 보고 세 손님의 한 잔을 완성하세요.</p><h3>따르기와 기울기</h3><p>화면이나 아래 버튼을 누르는 동안 맥주가 나옵니다. 손을 떼면 멈춥니다. 누른 채 왼쪽으로 움직이면 잔이 기울고, 오른쪽으로 움직이면 세워집니다. 기울이기·세우기 버튼도 사용할 수 있어요.</p><p>기울여 따르면 거품이 적게 생깁니다. 마지막에는 잔을 세워 부드러운 거품을 올려보세요. 거품은 기다리면 조금씩 가라앉습니다. 잔을 너무 기울이거나 오래 따르면 넘칩니다.</p><h3>주문 마무리</h3><p>원하는 모양이 되면 <b>서빙</b>를 누르세요. 맥주 양·거품·넘친 양으로 점수를 매깁니다. 세 손님의 평균이 최종 기록입니다. 시간은 처음 따르기 시작할 때부터 흐릅니다.</p><p class="muted small">키보드: Space 누르고 따르기 · ← 기울이기 · → 세우기 · Enter 제출 · R 다시 도전 · Esc 일시 정지</p>',
   );
 }
