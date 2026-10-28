@@ -6,14 +6,14 @@ const STEPS = {
   melt:{ n:1, title:'설탕 녹이기', short:'녹이기', body:'국자를 꾹 눌러 연탄불에 올리고, 빙글빙글 저어 녹이세요. 황금빛이 되면 손을 떼요.', hint:'누른 채 빙글빙글' },
   soda:{ n:2, title:'소다 넣기', short:'부풀리기', body:'탭해서 소다를 톡! 빠르게 저어 부풀리고, 알맞게 부풀면 손을 떼요.', hint:'탭하고 빙글빙글' },
   press:{ n:3, title:'누르기', short:'누르기', body:'누르개를 아래로 끌어 납작하게 눌러요. 너무 얇으면 잘 깨지고, 두꺼우면 잘 안 긁혀요.', hint:'아래로 끌었다 놓기' },
-  carve:{ n:4, title:'모양 뽑기', short:'뽑기', body:'바늘로 선을 따라 살살 긁어요. 빨리 긁으면 금이 가고, 금이 모양 안으로 들어가면 깨져요.', hint:'선을 따라 드래그' },
+  carve:{ n:4, title:'모양 뽑기', short:'뽑기', body:'선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 그대로 선을 따라 살살 문지르세요. 빨리 긁으면 금이 가고, 금이 모양 안으로 들어가면 깨져요.', hint:'선 위를 누른 채 문지르기' },
 };
 const HINTS = {
   pick:'어떤 모양에 도전할까요?',
   melt:'누른 채 빙글빙글 저어 녹이고, 황금빛에 손을 떼요.',
   soda:'탭해서 소다를 넣고, 빙글빙글 저어 부풀려요.',
   press:'누르개를 아래로 끌었다 놓아요.',
-  carve:'선을 따라 살살 긁어 모양을 떼어 내요.',
+  carve:'빛나는 선 위를 누른 채 살살 문질러요.',
   result:'오늘의 뽑기 결과예요.',
 };
 const GRADE_POP = {
@@ -49,8 +49,8 @@ export class DalgonaController {
 <div id="dal-shapes" class="dal-shapes" role="group" aria-label="달고나 모양">${SHAPES.map(s => `<button type="button" data-shape="${s.id}" aria-pressed="${s.id === this.g.shape.id}">${shapeSvg(s.id)}<b>${s.name}</b><span class="dal-stars" aria-label="난이도 ${s.level}">${stars(s.level)}</span></button>`).join('')}</div>
 <p id="dal-note" class="dal-note">모양 그대로 떼어 내면 하나 더!</p>
 <div id="dal-meter" class="dal-meter" hidden><div class="meter-track"><i id="dal-meter-fill"></i></div></div>
-<div class="dal-bottom-row"><div id="dal-detail" class="dal-detail" role="status"></div><button id="dal-next" class="dal-next">만들기 시작 →</button></div>
-<p class="dal-key-help">누르기·빙글빙글·끌기·드래그 · 키보드 Space 길게</p></div>
+<div class="dal-bottom-row"><div id="dal-detail" class="dal-detail" role="status"></div><div id="dal-modes" class="dal-modes"><button id="dal-quick" class="dal-next">바로 뽑기 →</button><button id="dal-next" class="dal-make"><b>직접 만들기</b><small>설탕 녹이고 소다 넣기부터</small></button></div></div>
+<p class="dal-key-help">누르기·빙글빙글·끌기·드래그 · 키보드 Space 길게 · Q 바로 뽑기</p></div>
 <div id="result" class="result-overlay dal-result-overlay" hidden></div></main>`;
     this.shell = app.querySelector('.dalgona'); this.canvas = app.querySelector('#game');
     this.view = new DalgonaView(this.canvas, this.g, { sound });
@@ -81,7 +81,8 @@ export class DalgonaController {
     this.shell.addEventListener('click', e => {
       const shape = e.target.closest('[data-shape]');
       if (shape && g.choose(shape.dataset.shape)) this.shell.querySelectorAll('[data-shape]').forEach(b => b.setAttribute('aria-pressed', String(b === shape)));
-      if (e.target.closest('#dal-next')) { this.view.sfx.ensure(); if (g.phase === 'pick') g.start(); this.updateHUD(true); c.focus({ preventScroll:true }); }
+      const mode = e.target.closest('#dal-next') ? 'make' : e.target.closest('#dal-quick') ? 'quick' : null;
+      if (mode) { this.view.sfx.ensure(); if (g.phase === 'pick') g.start(mode); this.updateHUD(true); c.focus({ preventScroll:true }); }
       if (e.target.closest('#dal-lick')) { this.view.sfx.ensure(); g.lick(); }
     }, opt);
     const scale = () => Math.min(c.clientWidth, c.clientHeight) * .3;
@@ -111,6 +112,7 @@ export class DalgonaController {
       if (this.modal.open) return;
       if (e.code === 'Space') { e.preventDefault(); if (e.repeat) return; if (g.phase === 'pick') { g.start(); this.updateHUD(true); return; } this.keyHold = true; this.keyPress = g.make.press; if (g.phase !== 'carve') g.press(true); }
       if (e.code === 'Enter') { e.preventDefault(); if (g.phase === 'pick') g.start(); }
+      if (e.code === 'KeyQ' && g.phase === 'pick') { g.start('quick'); this.updateHUD(true); }
       if (e.code === 'KeyL') g.lick();
       if (e.code === 'Escape') { e.preventDefault(); if (g.phase === 'paused') g.resume(); else g.pause(); }
     }, opt);
@@ -118,6 +120,7 @@ export class DalgonaController {
   }
   needleAt(e, down) { const p = this.view.pick(e.clientX, e.clientY - this.lift); if (p) this.g.needle(p.x, p.y, down); }
 
+  buzz(ms) { try { navigator.vibrate?.(ms); } catch {} }
   pop(text, tone = '') { const el = this.$('dal-pop'); el.textContent = text; el.className = 'dal-pop ' + tone; void el.offsetWidth; el.classList.add('show'); }
   onEvent(e) {
     const g = this.g, m = g.make;
@@ -127,7 +130,9 @@ export class DalgonaController {
       this.pop(GRADE_POP[e.step][key], e.grade === 'bad' ? 'miss' : e.grade);
     }
     if (e.type === 'burnt') this.pop('타고 있어요!', 'miss');
-    if (e.type === 'crack') { this.pop(e.inward ? '쩍! 금이 갔어요' : '바깥쪽 금, 휴…', e.inward ? 'miss' : 'good'); this.shell.dataset.flash = ''; void this.shell.offsetWidth; this.shell.dataset.flash = e.inward ? 'bad' : 'soft'; }
+    if (e.type === 'touch') this.buzz(e.where === 'line' ? 8 : 20);
+    if (e.type === 'shard') this.buzz(15);
+    if (e.type === 'crack') { this.buzz(e.inward ? [40, 30, 40] : 25); this.pop(e.inward ? '쩍! 금이 갔어요' : '바깥쪽 금, 휴…', e.inward ? 'miss' : 'good'); this.shell.dataset.flash = ''; void this.shell.offsetWidth; this.shell.dataset.flash = e.inward ? 'bad' : 'soft'; }
     if (e.type === 'shard') this.pop('톡!', 'small');
     if (e.type === 'lick') this.pop('촉촉하게…', 'good');
     if (e.type === 'free') this.pop('성공!', 'perfect');
@@ -141,16 +146,17 @@ export class DalgonaController {
     d.phase = g.phase; d.state = g.state; d.melt = Math.round(m.melt * 100); d.puff = Math.round(m.puff * 100); d.press = Math.round(m.press * 100); d.progress = Math.round(g.progressRatio() * 100); d.chips = c.chips; d.cracks = c.cracks.length;
     if (changed) {
       this.lastPhase = phase; this.lastState = g.state; this.shell.dataset.stage = phase;
-      const step = STEPS[phase];
-      this.$('dal-title').textContent = step ? `${step.n} / 4 ${step.title}` : phase === 'result' ? '오늘의 뽑기' : '달고나 뽑기';
+      const step = STEPS[phase], quick = g.mode === 'quick';
+      this.shell.dataset.mode = quick && phase !== 'pick' ? 'quick' : 'make';
+      this.$('dal-title').textContent = step ? (quick ? step.title : `${step.n} / 4 ${step.title}`) : phase === 'result' ? '오늘의 뽑기' : '달고나 뽑기';
       this.$('dal-instruction').textContent = HINTS[phase] || '';
       this.$('dal-shapes').hidden = phase !== 'pick'; this.$('dal-note').hidden = phase !== 'pick';
-      this.$('dal-next').hidden = phase !== 'pick';
+      this.$('dal-modes').hidden = phase !== 'pick';
       this.$('dal-meter').hidden = phase !== 'carve';
       this.shell.querySelectorAll('.dal-steps li').forEach(li => { const s = STEPS[li.dataset.step]; li.className = !step ? (phase === 'result' ? 'done' : '') : s.n < step.n ? 'done' : s.n === step.n ? 'active' : ''; });
       const intro = this.$('dal-intro'), showIntro = !!step && g.state === 'intro'; intro.hidden = !showIntro;
       if (showIntro) {
-        this.$('dal-intro-step').textContent = `STEP ${step.n} / 4`; this.$('dal-intro-title').textContent = step.title; this.$('dal-intro-body').textContent = step.body; this.$('dal-intro-hint').textContent = step.hint;
+        this.$('dal-intro-step').textContent = quick ? '바로 뽑기' : `STEP ${step.n} / 4`; this.$('dal-intro-title').textContent = step.title; this.$('dal-intro-body').textContent = step.body; this.$('dal-intro-hint').textContent = step.hint;
         this.$('dal-intro-icon').innerHTML = icons[phase === 'press' ? 'down' : phase === 'carve' ? 'trace' : 'circle'];
       }
       const gauge = this.$('dal-gauge'); gauge.hidden = !['melt', 'soda', 'press'].includes(phase) || g.state === 'intro'; gauge.dataset.kind = phase;
@@ -173,17 +179,20 @@ export class DalgonaController {
       this.set('dal-chips', 'html', Array.from({ length:MAX_CHIPS }, (_, i) => `<i class="${i < c.chips ? 'on' : ''}"></i>`).join(''));
       this.set('dal-licks', 'text', String(c.licks)); this.$('dal-lick').disabled = c.licks <= 0 || c.wet > 0 || g.state !== 'play';
       const left = g.shape.time - c.t;
-      this.set('dal-detail', 'text', g.state === 'intro' ? '' : c.wet > 0 ? '촉촉해서 덜 깨져요' : c.tension > .7 ? '살살! 금이 가려고 해요' : left < 12 ? '서둘러요!' : `${Math.round(g.progressRatio() * 100)}% 떼어 냈어요`);
+      // what the needle is doing right now, so every touch answers at once
+      const pct = `${Math.round(g.progressRatio() * 100)}%`;
+      this.set('dal-detail', 'text', g.state === 'intro' ? '' : c.tension > .7 ? '살살! 금이 가려고 해요' : !c.down ? (g.progressRatio() < .03 ? '빛나는 선 위를 눌러 보세요' : `선 위를 계속 문질러요 · ${pct}`) : c.where === 'inside' ? '안쪽은 긁으면 흠집이 나요!' : c.where === 'outside' ? '선 쪽으로 옮겨요' : c.wet > 0 ? `촉촉해서 덜 깨져요 · ${pct}` : left < 12 ? `서둘러요! · ${pct}` : `사각사각… ${pct}`);
+      this.shell.dataset.needle = c.down ? c.where || '' : '';
       this.set('dal-meter-fill', 'width', (g.progressRatio() * 100).toFixed(1) + '%');
     }
-    if (phase === 'pick') this.$('dal-next').disabled = false;
+    if (phase === 'pick') this.$('dal-next').disabled = this.$('dal-quick').disabled = false;
   }
   showResult() {
     const r = this.g.result, g = this.g, shape = g.shape;
     const title = r.freed ? (r.bonus ? '하나 더!' : '모양 뽑기 성공!') : r.reason === 'broken' ? '앗, 깨졌어요' : '시간이 다 됐어요';
-    const line = r.bonus ? '이야, 솜씨 좋네! 하나 더 가져가!' : r.freed ? '잘 뽑았네! 다음엔 더 깔끔하게 해 봐.' : r.reason === 'timeout' ? '시간이 다 됐어. 침을 발라 가며 해 봐.' : r.make < 70 ? '달고나가 잘 깨지네. 만들 때 황금빛을 노려 봐.' : '너무 급했어. 바늘은 살살!';
+    const line = r.bonus ? '이야, 솜씨 좋네! 하나 더 가져가!' : r.freed ? '잘 뽑았네! 다음엔 더 깔끔하게 해 봐.' : r.reason === 'timeout' ? '시간이 다 됐어. 침을 발라 가며 해 봐.' : r.make != null && r.make < 70 ? '달고나가 잘 깨지네. 만들 때 황금빛을 노려 봐.' : '너무 급했어. 바늘은 살살!';
     this.$('result').hidden = false;
-    this.$('result').innerHTML = `<section class="result-card dal-result ${r.freed ? 'win' : 'lose'}" aria-labelledby="dal-result-title"><span class="eyebrow">${r.freed ? 'DALGONA MASTER' : 'ONE MORE TRY'}</span><h2 id="dal-result-title">${title}</h2><div class="dal-score-line"><div class="result-value">${r.value}<small>점</small></div><span class="dal-shape-badge">${shapeSvg(shape.id)}${shape.name}</span></div><p class="dal-vendor"><b>뽑기 아저씨</b>“${line}”</p><div class="dal-score-list"><span>만들기<b>${r.make}</b></span><span>온전함<b>${r.integrity}</b></span><span>금<b>${r.cracks}</b></span><span>시간<b>${r.time}초</b></span></div><div class="result-actions"><button class="primary" data-action="retry">하나 더 →</button><button class="secondary" data-action="boast">자랑하기 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>`;
+    this.$('result').innerHTML = `<section class="result-card dal-result ${r.freed ? 'win' : 'lose'}" aria-labelledby="dal-result-title"><span class="eyebrow">${r.freed ? 'DALGONA MASTER' : 'ONE MORE TRY'}</span><h2 id="dal-result-title">${title}</h2><div class="dal-score-line"><div class="result-value">${r.value}<small>점</small></div><span class="dal-shape-badge">${shapeSvg(shape.id)}${shape.name}</span></div><p class="dal-vendor"><b>뽑기 아저씨</b>“${line}”</p><div class="dal-score-list">${r.make == null ? '<span>모드<b>바로 뽑기</b></span>' : `<span>만들기<b>${r.make}</b></span>`}<span>온전함<b>${r.integrity}</b></span><span>금<b>${r.cracks}</b></span><span>시간<b>${r.time}초</b></span></div><div class="result-actions"><button class="primary" data-action="retry">하나 더 →</button><button class="secondary" data-action="boast">자랑하기 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>`;
   }
   destroy() { this.dead = true; cancelAnimationFrame(this.raf); this.abort.abort(); this.view.destroy(); }
 }

@@ -52,6 +52,15 @@ try{
  for(const lang of ['en','ja','zh-Hant','es']){await p.locator('#language-select').selectOption(lang);await p.waitForTimeout(150);assert.deepEqual(await p.locator('body').evaluate(korean),[],lang);await p.screenshot({path:out+'/result-'+lang+'.png'})}
  record('result translated in four languages');
  await p.locator('#language-select').selectOption('ko');
+ // quick mode: straight to the needle, and a finger a few pixels off the groove still scratches it
+ await p.goto(base+'/game/dalgona/');await p.locator('#game[data-phase="pick"]').waitFor();await p.locator('#dal-quick').click();
+ await p.locator('#game[data-phase="carve"]').waitFor({timeout:3000});await p.waitForTimeout(1400);await p.screenshot({path:out+'/quick-intro.png'});
+ const qp=await p.evaluate(()=>{const c=document.querySelector('#game').__dalgona;return c.g.path.map(q=>{const r=Math.hypot(q.x,q.y),f=(r+.07)/r;return c.view.project(q.x*f,q.y*f)})});
+ for(let i=0;i<40&&await data('state')!=='play';i++){await p.mouse.move(qp[0].x,qp[0].y);await p.mouse.down();await p.waitForTimeout(80);if(await data('state')==='play')break;await p.mouse.up();await p.waitForTimeout(120)}
+ assert.equal(await p.evaluate(()=>document.querySelector('#game').__dalgona.g.carve.where),'line');
+ for(let k=0;k<qp.length;k++){await p.mouse.move(qp[k].x,qp[k].y);await p.waitForTimeout(16);if(k===40)await p.screenshot({path:out+'/quick-touch.png'})}
+ await p.mouse.up();const qprog=Number(await data('progress'));assert.ok(qprog>=25,'quick progress '+qprog);
+ record('quick mode skips making; an off-line finger snaps to the groove ('+qprog+'% in one lap)');
  await p.goto(base+'/');await p.locator('#preview-dalgona[data-renderer]').waitFor({state:'attached'});assert.equal(await p.locator('.game-card').count(),5);await p.waitForTimeout(600);await p.screenshot({path:out+'/home.png',fullPage:true});record('home lists five games');
  const untranslated=[];for(const g of ['dalgona','pasta','beer','curling','drive','']){await p.goto(base+(g?'/game/'+g+'/':'/'));await p.waitForTimeout(300);for(const lang of ['en','ja','zh-Hant','es']){await p.locator('#language-select').selectOption(lang);await p.waitForTimeout(100);const raw=await p.locator('body').evaluate(korean);if(raw.length)untranslated.push({game:g||'home',lang,raw});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))}await p.locator('#language-select').selectOption('ko')}
  for(const [width,height] of [[320,568],[844,390],[1280,800]]){await p.setViewportSize({width,height});await p.goto(base+'/game/dalgona/');await p.locator('#game[data-phase="pick"]').waitFor();const nb=await p.locator('#dal-next').boundingBox();assert.ok(nb.y>=0&&nb.y+nb.height<=height+1);assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await p.waitForTimeout(300);await p.screenshot({path:out+`/layout-${width}x${height}.png`});record('dalgona fits '+width+'x'+height)}

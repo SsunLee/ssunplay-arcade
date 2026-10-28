@@ -34,23 +34,29 @@ try{
  const slices=Number(await data('slices')),perfects=Number(await data('perfects'));console.log('CHOP',slices,perfects);
  assert.ok(slices>=10,'slices '+slices);assert.ok(perfects>=8,'perfects '+perfects+'/'+slices);assert.ok(switched);
  record(`rhythm chopping with real taps: ${perfects}/${slices} perfect, language switch kept progress`);
- // 2. sauté: hold to heat, release to cool
- await p.locator('#game[data-phase="saute"]').waitFor();await p.waitForTimeout(600);
- let down=false;
- const sauteEnd=Date.now()+120000;for(let i=0;Date.now()<sauteEnd&&['saute','paused'].includes(await data('phase'));i++){
-  await unpause();
-  const want=Number(await data('temp'))<57||await data('state')==='intro';
-  if(want!==down){down=want;want?await p.mouse.down():await p.mouse.up()}
-  if(i===80)await p.screenshot({path:out+'/saute.png'});
+ // 2. stove: hold the pan for heat, let go to tap the pot, drag the pasta across at al dente
+ await p.locator('#game[data-phase="stove"]').waitFor();await p.waitForTimeout(600);
+ const at=w=>p.evaluate(w=>document.querySelector('#game').__pasta.view.screenOf(w),w);
+ let pan=await at('pan'),pot=await at('pot');
+ assert.ok(pan.x<pot.x,'pan sits left of the pot');assert.equal(await p.evaluate(([x,y])=>document.querySelector('#game').__pasta.view.burnerAt(x,y),[pot.x,pot.y]),'pot');
+ await begin(pan.x,pan.y);await p.waitForTimeout(1200);pan=await at('pan');pot=await at('pot');
+ let down=false,taps=0;
+ const stoveEnd=Date.now()+120000;for(let i=0;Date.now()<stoveEnd&&['stove','paused'].includes(await data('phase'));i++){
+  if(await data('phase')==='paused'){if(down){await p.mouse.up();down=false}await unpause()}
+  if(Number(await data('done'))>=74)break;
+  if(Number(await data('foam'))>66){if(down){await p.mouse.up();down=false}await p.mouse.click(pot.x,pot.y);taps++;await p.waitForTimeout(40);continue}
+  const want=Number(await data('temp'))<57;
+  if(want!==down){down=want;if(want){await p.mouse.move(pan.x,pan.y);await p.mouse.down()}else await p.mouse.up()}
+  if(i===60)await p.screenshot({path:out+'/stove.png'});
   await p.waitForTimeout(25);
  }
  if(down)await p.mouse.up();
- record('hold-to-heat sauté completes');
- // 3. boil: tap foam down, drain at al dente
- await p.locator('#game[data-phase="boil"]').waitFor();await p.waitForTimeout(600);await begin(cx,cy);
- const boilEnd=Date.now()+120000;for(let i=0;Date.now()<boilEnd;i++){await unpause();if(Number(await data('foam'))>68)await p.mouse.click(cx,cy);if(Number(await data('done'))>=74)break;if(i===150)await p.screenshot({path:out+'/boil.png'});await p.waitForTimeout(20)}
- await p.locator('#pasta-next').click();
- record('foam taps and al dente drain');
+ assert.ok(taps>=1,'pot taps '+taps);
+ pan=await at('pan');pot=await at('pot');await p.screenshot({path:out+'/stove-ready.png'});
+ await p.mouse.move(pot.x,pot.y);await p.mouse.down();await p.mouse.move(pan.x,pan.y,{steps:10});await p.mouse.up();
+ console.log('DRAIN',await data('phase'),await data('state'),await data('done'));
+ await p.locator('#game[data-phase="toss"]').waitFor({timeout:5000});
+ record(`two burners at once: ${taps} pot taps while holding the pan, drag-to-drain at al dente`);
  // 4. toss: drag up to the band height
  await p.locator('#game[data-phase="toss"]').waitFor();await p.waitForTimeout(700);
  b=await box();const y0=b.y+b.height*.85;
@@ -58,8 +64,8 @@ try{
   await p.waitForFunction(()=>document.querySelector('#game').dataset.flight==='0');await unpause();
   const [lo,hi]=(await data('band')).split(',').map(Number),power=(lo+hi)/2;
   await p.mouse.move(cx,y0);await p.mouse.down();await p.mouse.move(cx,y0-power*b.height*.42,{steps:8});await p.mouse.up();
-  if(n===0){await p.waitForTimeout(380);await p.screenshot({path:out+'/toss.png'})}
-  await p.waitForTimeout(1200);
+  if(n===0){await p.waitForTimeout(250);await p.screenshot({path:out+'/toss.png'})}
+  await p.waitForTimeout(1300);
  }
  await p.locator('#game[data-phase="result"]').waitFor();await p.locator('#result').waitFor({state:'visible'});await p.waitForTimeout(800);
  await p.screenshot({path:out+'/result.png'});

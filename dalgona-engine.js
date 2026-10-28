@@ -9,10 +9,14 @@ export const SHAPES = [
   { id:'star', name:'별', level:4, time:85, safe:.47 },
 ];
 export const MAKE_STEPS = ['melt', 'soda', 'press'];
+export const MODES = ['quick', 'make'];
+// a ready-made street candy for the quick mode: golden, well puffed, pressed just right
+const STALL_CANDY = { melt:.86, puff:.74, press:.7 };
 export const MELT_GOLD = [.78, .95];
 export const PUFF_GOLD = [.62, .86];
 export const PRESS_GOLD = [.6, .8];
 export const TOL = .055;          // how close the needle must pass to scratch the groove
+export const SNAP = .12;          // a needle this close to the groove slides into it
 export const SAFE_SPEED = .55;    // candy units per second a typical toffee tolerates; each shape sets its own
 export const SECTORS = 12;
 export const MAX_CHIPS = 3;
@@ -61,7 +65,7 @@ export class DalgonaGame {
   constructor(seed = Date.now()) {
     this.random = rng(seed);
     this.shape = SHAPES[0];
-    this.phase = 'pick'; this.state = 'intro'; this.stateTime = 0; this.clock = 0;
+    this.phase = 'pick'; this.state = 'intro'; this.stateTime = 0; this.clock = 0; this.mode = 'make';
     this.events = []; this.result = null;
     this.reset();
   }
@@ -69,10 +73,17 @@ export class DalgonaGame {
     this.make = { melt:0, lumps:0, onFire:false, stir:0, soda:false, puff:0, still:0, press:0, pressing:false, burnt:false, grades:{} };
     const o = outline(this.shape.id);
     this.path = o.points; this.radial = o.radial; this.sectors = o.points.map(p => sectorOf(p.a));
-    this.carve = { progress:new Float32Array(N), popped:new Array(SECTORS).fill(false), needle:null, down:false, tension:0, chips:0, scratch:0, cracks:[], licks:3, wet:0, t:0, brittle:1, rate:1, moved:0 };
+    this.carve = { progress:new Float32Array(N), popped:new Array(SECTORS).fill(false), needle:null, down:false, where:null, tension:0, chips:0, scratch:0, cracks:[], licks:3, wet:0, t:0, brittle:1, rate:1, moved:0 };
   }
   choose(id) { if (this.phase !== 'pick') return false; this.shape = SHAPES.find(s => s.id === id) || SHAPES[0]; this.reset(); return true; }
-  start() { if (this.phase !== 'pick') return false; this.reset(); this.enter('melt'); return true; }
+  start(mode = 'make') {
+    if (this.phase !== 'pick') return false;
+    this.mode = MODES.includes(mode) ? mode : 'make'; this.reset();
+    if (this.mode === 'make') { this.enter('melt'); return true; }
+    // quick: the vendor hands over a stamped candy and the needle comes out right away
+    Object.assign(this.make, STALL_CANDY); this.toCarve(); return true;
+  }
+  toCarve() { const q = this.quality(); this.carve.brittle = q.brittle; this.carve.rate = q.rate; this.enter('carve'); }
   enter(phase) { this.held = false; this.phase = phase; this.state = 'intro'; this.stateTime = 0; this.events.push({ type:'phase', phase }); }
   begin() {
     if (this.state !== 'intro' || this.stateTime < .45 || !['melt', 'soda', 'press', 'carve'].includes(this.phase)) return false;
@@ -124,9 +135,27 @@ export class DalgonaGame {
     if (this.phase !== 'carve') return;
     if (down && this.state === 'intro') this.begin();
     if (this.state !== 'play') { c.needle = null; c.down = false; return; }
-    if (!down) { c.down = false; c.needle = null; return; }
+    if (!down) { c.down = false; c.needle = null; c.where = null; return; }
+    // close to the groove the tip slides into it, so a finger never has to be pixel-exact
+    const near = this.nearest(x, y);
+    if (near.d < SNAP) { x = near.x; y = near.y; }
+    const first = !c.down;
     if (c.down && c.needle) c.moved += Math.hypot(x - c.needle.x, y - c.needle.y);
     c.needle = { x, y }; c.down = true;
+    c.where = near.d < SNAP ? 'line' : Math.hypot(x, y) < this.radial(Math.atan2(y, x)) ? 'inside' : 'outside';
+    if (first) this.events.push({ type:'touch', where:c.where, x, y });
+  }
+  // nearest point on the groove (projected onto its two neighbouring segments)
+  nearest(x, y) {
+    const P = this.path, n = P.length; let k = 0, best = Infinity;
+    for (let i = 0; i < n; i++) { const d = (P[i].x - x) ** 2 + (P[i].y - y) ** 2; if (d < best) { best = d; k = i; } }
+    let out = { x:P[k].x, y:P[k].y, d:Math.sqrt(best), k };
+    for (const j of [(k + n - 1) % n, (k + 1) % n]) {
+      const a = P[k], b = P[j], ex = b.x - a.x, ey = b.y - a.y, t = Math.max(0, Math.min(1, ((x - a.x) * ex + (y - a.y) * ey) / (ex * ex + ey * ey || 1)));
+      const px = a.x + ex * t, py = a.y + ey * t, d = Math.hypot(px - x, py - y);
+      if (d < out.d) out = { x:px, y:py, d, k };
+    }
+    return out;
   }
   lick() {
     const c = this.carve;
@@ -147,10 +176,10 @@ export class DalgonaGame {
     if (c.down && c.needle) {
       const { x, y } = c.needle, info = this.lineInfo(x, y), speed = moved / Math.max(dt, 1e-3);
       if (info.dist < TOL * 1.6) {
-        const gain = moved * 5 * c.rate * (c.wet > 0 ? .8 : 1);
+        const gain = moved * 6 * c.rate * (c.wet > 0 ? .8 : 1);
         for (let k = 0; k < this.path.length; k++) { const p = this.path[k], d = Math.hypot(p.x - x, p.y - y); if (d < TOL) c.progress[k] = Math.min(1, c.progress[k] + gain * (1 - d / TOL * .5)); }
         c.tension += Math.max(0, speed - this.shape.safe) * 1.3 * brittle * dt;
-        if (moved > 0) this.events.push({ type:'scrape', speed });
+        if (moved > 0) this.events.push({ type:'scrape', speed, x, y });
       } else if (info.inside) {
         // wandering inside the shape mars it
         c.scratch += dt * Math.min(1, speed * 2 + .2); c.tension += (.35 + speed * .8) * brittle * dt;
@@ -188,7 +217,7 @@ export class DalgonaGame {
       if (this.stateTime >= this.doneDelay) {
         const i = MAKE_STEPS.indexOf(this.phase);
         if (i >= 0 && i < MAKE_STEPS.length - 1) this.enter(MAKE_STEPS[i + 1]);
-        else if (this.phase === 'press') { const q = this.quality(); this.carve.brittle = q.brittle; this.carve.rate = q.rate; this.enter('carve'); }
+        else if (this.phase === 'press') this.toCarve();
       }
       return;
     }
@@ -218,7 +247,7 @@ export class DalgonaGame {
     const c = this.carve, q = this.quality();
     const integrity = Math.round(clamp(100 - c.chips * 25 - c.scratch * 6, 0, 100)), left = Math.max(0, this.shape.time - c.t);
     const value = freed ? Math.round(integrity * .75 + left / this.shape.time * 25) : Math.round(this.progressRatio() * 35);
-    this.result = { game:'dalgona', shape:this.shape.id, freed, reason, value, metric:value, integrity, chips:c.chips, cracks:c.cracks.length, time:Math.round(c.t), left:Math.round(left), licks:3 - c.licks, make:q.score, grades:{ ...this.make.grades }, bonus:freed && value >= 80 };
+    this.result = { game:'dalgona', shape:this.shape.id, freed, reason, value, metric:value, integrity, chips:c.chips, cracks:c.cracks.length, time:Math.round(c.t), left:Math.round(left), licks:3 - c.licks, make:this.mode === 'quick' ? null : q.score, mode:this.mode, grades:{ ...this.make.grades }, bonus:freed && value >= 80 };
     this.phase = 'result'; this.state = 'done'; this.events.push({ type:'finish', freed });
   }
 }

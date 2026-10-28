@@ -1,6 +1,6 @@
 import * as T from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { SHAPES, SECTORS, outline, MELT_GOLD } from './dalgona-engine.js';
+import { SHAPES, SECTORS, outline } from './dalgona-engine.js';
 import { Sfx, canvasTexture } from './pasta-view.js';
 
 const TAU = Math.PI * 2;
@@ -37,6 +37,7 @@ class CandySfx extends Sfx {
   clank() { this.tone(820, .3, { type:'square', vol:.07, to:610 }); this.tone(1240, .22, { type:'triangle', vol:.06 }); this.burst({ freq:3000, q:1.2, vol:.25, dur:.06 }); }
   thunk() { this.tone(140, .14, { to:60, vol:.35 }); this.burst({ freq:900, type:'lowpass', vol:.2, dur:.1 }); }
   lick() { this.burst({ freq:700, sweep:1600, type:'lowpass', q:3, vol:.25, dur:.22 }); }
+  tick(on) { this.burst({ freq:on ? 5200 : 2400, q:3, vol:on ? .22 : .12, dur:.025 }); }
   sprinkle() { for (let i = 0; i < 6; i++) this.burst({ freq:6000, type:'highpass', q:.6, vol:.06, dur:.03, delay:i * .04 }); }
   win() { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, i === 4 ? .6 : .14, { type:'triangle', vol:.12, delay:i * .09 })); }
   lose() { [392, 330, 262].forEach((f, i) => this.tone(f, .22, { type:'triangle', vol:.1, delay:i * .14 })); }
@@ -202,6 +203,26 @@ export class DalgonaView {
     const shaft = this.mesh(new T.CylinderGeometry(.014, .002, .8, 10), this.std(0xe3e6ea, .18, 1), { parent:n }); shaft.geometry.translate(0, .4, 0);
     const head = this.mesh(new T.SphereGeometry(.05, 16, 10), this.std(0xd94b3a, .35), { parent:n }); head.position.y = .8;
     n.rotation.set(.32, 0, -.28); n.visible = false;
+    // the spot the tip touches: gold on the groove, red inside the shape
+    const tipMat = this.tipMat = this.track(new T.MeshBasicMaterial({ color:0xffd36a, transparent:true, opacity:.9, depthWrite:false }));
+    this.tip = new T.Group(); this.scene.add(this.tip);
+    const ring = this.mesh(new T.TorusGeometry(.075, .011, 6, 32), tipMat, { parent:this.tip, cast:false }); ring.rotation.x = Math.PI / 2;
+    const dot = this.mesh(new T.CircleGeometry(.03, 16), tipMat, { parent:this.tip, cast:false }); dot.rotation.x = -Math.PI / 2;
+    this.tip.visible = false; this.tip.renderOrder = 3;
+    this.ripples = [];
+  }
+  // a glowing ribbon over the stamped groove shows where to scratch
+  buildGuide() {
+    if (this.guide) { this.scene.remove(this.guide); this.guide.geometry.dispose(); }
+    const pts = this.game.path.map(p => new T.Vector3(p.x, 0, -p.y));
+    this.guideMat ||= this.track(new T.MeshBasicMaterial({ color:0xfff1b8, transparent:true, opacity:0, depthWrite:false }));
+    this.guide = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts, true), 240, .016, 5, true), this.guideMat); this.guide.renderOrder = 2;
+    this.scene.add(this.guide);
+  }
+  ripple(x, y, color) {
+    if (this.preview) return;
+    const m = new T.Mesh(this._ring ||= this.track(new T.RingGeometry(.8, 1, 40)), new T.MeshBasicMaterial({ color, transparent:true, opacity:.8, depthWrite:false, side:T.DoubleSide }));
+    m.rotation.x = -Math.PI / 2; m.position.copy(this.candyPoint(x, y)).add(new T.Vector3(0, .01, 0)); this.scene.add(m); this.ripples.push({ m, t:0 });
   }
   // The candy is built from the stamped shape plus twelve shards around it.
   buildCandy() {
@@ -232,8 +253,8 @@ export class DalgonaView {
       const m = new T.Mesh(new T.ExtrudeGeometry(new T.Shape(pts), opts), [this.topMat, this.sideMat]); m.castShadow = m.receiveShadow = true; m.userData.mid = (a0 + a1) / 2;
       this.candy.add(m); this.shards.push(m);
     }
-    this.scratches = []; this.stamped = false; this.freeT = null; this.snapT = null;
-    this.paintBase(); this.dirty = true;
+    this.scratches = []; this.stamped = false; this.freeT = null; this.snapT = null; this.hot = new Float32Array(g.path.length);
+    this.buildGuide(); this.paintBase(); this.dirty = true;
   }
   paintBase() {
     const x = this.baseCanvas.getContext('2d'), w = this.baseCanvas.width, m = this.game.make;
@@ -257,6 +278,14 @@ export class DalgonaView {
         x.strokeStyle = `rgba(255,238,200,${.35 + v * .5})`; x.lineWidth = (14 + v * 10) * px; x.beginPath(); x.moveTo(u0, v0); x.lineTo(u1, v1); x.stroke();
         x.strokeStyle = v >= 1 ? 'rgba(28,10,2,.98)' : `rgba(70,28,6,${.3 + v * .6})`; x.lineWidth = (5 + v * 7) * px; x.stroke();
       }
+      // fresh scratches glow for a moment so every stroke shows at once
+      x.strokeStyle = 'rgba(255,214,110,.95)';
+      for (let k = 0; k < g.path.length; k++) {
+        const h = this.hot?.[k]; if (!(h > .05)) continue;
+        const p = g.path[k], q = g.path[(k + 1) % g.path.length], [u0, v0] = this.toPx(p.x, p.y), [u1, v1] = this.toPx(q.x, q.y);
+        x.globalAlpha = Math.min(1, h); x.lineWidth = (8 + h * 10) * px; x.beginPath(); x.moveTo(u0, v0); x.lineTo(u1, v1); x.stroke();
+      }
+      x.globalAlpha = 1;
     }
     x.strokeStyle = 'rgba(255,230,190,.55)'; x.lineWidth = 4 * px;
     for (const s of this.scratches) { const [u, v] = this.toPx(s.x, s.y); x.beginPath(); x.moveTo(u - s.dx * 22 * px, v + s.dy * 22 * px); x.lineTo(u + s.dx * 22 * px, v - s.dy * 22 * px); x.stroke(); }
@@ -279,7 +308,14 @@ export class DalgonaView {
     if (e.type === 'burnt') for (let i = 0; i < 6; i++) this.steam(new T.Vector3(LADLE_FIRE.x, LADLE_FIRE.y, LADLE_FIRE.z), { color:0x3a3330, size:.6, rise:.9, opacity:.5 });
     if (e.type === 'step') { this.sfx.tone(e.grade === 'perfect' ? 880 : e.grade === 'good' ? 660 : 330, .16, { type:'triangle', vol:.1 }); }
     if (e.type === 'stamp') { this.stampT = 0; }
-    if (e.type === 'scrape') { this.dirty = true; this.scrapeLevel = Math.min(1, .25 + e.speed * .6); if (Math.random() < .25) this.dust(); }
+    // quick mode: a fresh candy is poured and stamped right before the needle comes out
+    if (e.type === 'phase' && e.phase === 'carve' && g.mode === 'quick') { this.syncShape(true); this.stampT = 0; }
+    if (e.type === 'touch') { this.sfx.tick(e.where === 'line'); this.ripple(e.x, e.y, e.where === 'line' ? 0xffd36a : e.where === 'inside' ? 0xff6a4a : 0xffffff); }
+    if (e.type === 'scrape') {
+      this.dirty = true; this.scrapeLevel = Math.min(1, .35 + e.speed * .6);
+      const P = g.path; for (let k = 0; k < P.length; k++) { const d = Math.hypot(P[k].x - e.x, P[k].y - e.y); if (d < .09) this.hot[k] = Math.max(this.hot[k], 1.2 - d * 6); }
+      if (Math.random() < .6) this.dust();
+    }
     if (e.type === 'scratch') { if (this.scratches.length < 120 && Math.random() < .3) { const a = Math.random() * TAU; this.scratches.push({ x:e.x, y:e.y, dx:Math.cos(a), dy:Math.sin(a) }); this.dirty = true; } this.scrapeLevel = .4; }
     if (e.type === 'crack') { this.dirty = true; this.sfx.crack(); if (e.inward) this.sfx.chip(); if (!this.reduced) this.shake = e.inward ? .05 : .025; this.burst(this.candyPoint(e.x, e.y), 0xd9922b, e.inward ? 10 : 5, { speed:.9, size:.014, spread:.7 }); }
     if (e.type === 'shard') this.popShard(e.sector);
@@ -296,7 +332,7 @@ export class DalgonaView {
     this.sfx.tone(700 + s * 40, .08, { type:'triangle', vol:.12, to:1400 }); this.sfx.burst({ freq:3800, q:2, vol:.2, dur:.04 });
     this.burst(this.candyPoint(Math.cos(a) * .7, Math.sin(a) * .7), 0xe0a040, 6, { speed:1, size:.015, spread:.8 });
   }
-  dust() { const n = this.game.carve.needle; if (n) this.burst(this.candyPoint(n.x, n.y), 0xf2d39a, 2, { speed:.5, size:.008, spread:.9 }); }
+  dust() { const n = this.game.carve.needle; if (n) this.burst(this.candyPoint(n.x, n.y), Math.random() < .5 ? 0xf2d39a : 0xc98a3a, 3, { speed:.7, size:.011, spread:1 }); }
   burst(at, color, n, { speed = 1.5, size = .03, spread = .6 } = {}) {
     if (this.preview) return;
     const geo = this._drop || (this._drop = this.track(new T.SphereGeometry(1, 6, 5)));
@@ -425,9 +461,28 @@ export class DalgonaView {
     if (N.visible) {
       if (c.needle) this.lastNeedle = c.needle;
       const at = this.lastNeedle ? this.candyPoint(this.lastNeedle.x, this.lastNeedle.y) : this.candyPoint(.75, -.4);
-      if (!c.down) at.y += .12;
-      N.position.lerp(at, 1 - Math.exp(-dt * 30));
+      if (!c.down) at.y += .12; else at.y += Math.abs(Math.sin(this.time * 40)) * (this.scrapeLevel || 0) * .02;
+      // a fresh touch puts the needle there at once; only the hover eases
+      if (c.down && !this.wasDown) N.position.copy(at); else N.position.lerp(at, 1 - Math.exp(-dt * 30));
     }
+    this.wasDown = c.down;
+    this.tip.visible = N.visible && c.down && !!c.needle;
+    if (this.tip.visible) {
+      this.tip.position.copy(this.candyPoint(c.needle.x, c.needle.y)).add(new T.Vector3(0, .006, 0));
+      this.tipMat.color.setHex(c.where === 'line' ? 0xffd36a : c.where === 'inside' ? 0xff5a4a : 0xffffff);
+      this.tip.scale.setScalar(1 + (this.scrapeLevel || 0) * .5 + Math.sin(this.time * 12) * .06);
+    }
+    // groove guide pulses until the first stroke, then stays faint
+    const showGuide = phase === 'carve' && this.stamped && this.stampT == null;
+    this.guide.visible = showGuide;
+    if (showGuide) {
+      const fresh = g.progressRatio() < .03;
+      this.guide.position.set(0, TRAY_TOP + th + .004, 0); this.guide.scale.set(R, 1, R);
+      this.guideMat.opacity = fresh ? .35 + Math.sin(this.time * 5) * .3 : c.down ? .08 : .18;
+    }
+    for (let k = 0; k < this.hot.length; k++) if (this.hot[k] > 0) { this.hot[k] = Math.max(0, this.hot[k] - dt * 2.2); if (this.hot[k] > 0) this.dirty = true; }
+    for (const r of this.ripples) { r.t += dt; const k = r.t / .45; r.m.scale.setScalar(.04 + k * .22); r.m.material.opacity = .8 * (1 - k); }
+    this.ripples = this.ripples.filter(r => { if (r.t < .45) return true; this.scene.remove(r.m); r.m.material.dispose(); return false; });
     this.sfx.level('scrape', phase === 'carve' && c.down ? (this.scrapeLevel || 0) * .22 : 0, 'bandpass', 3400, 2.5);
     this.scrapeLevel = Math.max(0, (this.scrapeLevel || 0) - dt * 4);
     // licking makes the top glossy for a while
@@ -457,7 +512,7 @@ export class DalgonaView {
   destroy() {
     this.dead = true; this.observer?.disconnect(); this.sfx.destroy();
     for (const s of this.sprites) s.s.material.dispose();
-    this.candy.traverse(o => o.geometry?.dispose()); for (const f of this.flying) f.m.geometry.dispose();
+    this.candy.traverse(o => o.geometry?.dispose()); for (const f of this.flying) f.m.geometry.dispose(); this.guide?.geometry.dispose();
     for (const d of this.disposables) d.dispose?.();
     this.envMap.dispose(); this.renderer.dispose();
   }

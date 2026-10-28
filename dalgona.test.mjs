@@ -100,3 +100,21 @@ test('holding through the intro lock still puts the ladle on the coals', () => {
   const g = new DalgonaGame(9); g.start(); g.press(true); assert.equal(g.state, 'intro');
   step(g, .6); assert.equal(g.state, 'play'); assert.ok(g.make.onFire);
 });
+
+test('quick mode hands over a ready candy and goes straight to the needle', () => {
+  const g = new DalgonaGame(10); g.choose('flower'); assert.ok(g.start('quick'));
+  assert.equal(g.mode, 'quick'); assert.equal(g.phase, 'carve'); assert.equal(g.state, 'intro');
+  assert.ok(g.carve.brittle < 1.1, 'brittle ' + g.carve.brittle);
+  trace(g); assert.ok(g.result.freed); assert.equal(g.result.make, null); assert.equal(g.result.mode, 'quick');
+});
+
+test('a touch near the groove snaps onto it and answers at once', () => {
+  const g = new DalgonaGame(11); g.start('quick'); step(g, .5);
+  const p = g.path[20], r = Math.hypot(p.x, p.y), f = (r + .08) / r;
+  g.needle(p.x * f, p.y * f, true);
+  assert.equal(g.carve.where, 'line'); assert.ok(Math.hypot(g.carve.needle.x - p.x, g.carve.needle.y - p.y) < .03);
+  assert.ok(g.events.some(e => e.type === 'touch' && e.where === 'line'));
+  for (let i = 0; i < 30; i++) { const q = g.path[20 + (i % 6)]; g.needle(q.x * f, q.y * f, true); g.update(1 / 60); }
+  assert.ok(g.carve.progress[22] > .3, 'progress ' + g.carve.progress[22]);
+  g.needle(0, 0, false); g.needle(0, 0, true); assert.equal(g.carve.where, 'inside');
+});

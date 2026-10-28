@@ -1,7 +1,7 @@
 import * as T from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { INGREDIENTS, SAUCES, TOSS_HEIGHT, sauteZone } from './pasta-engine.js';
+import { INGREDIENTS, SAUCES, TOSS_HEIGHT, TOSS_G, flightTime, sauteZone } from './pasta-engine.js';
 
 const TAU = Math.PI * 2, M = 32;
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -18,8 +18,8 @@ const STATIONS = {
   plate:{ target:[-6.6,.3,.15], w:3.5, h:3.1, tilt:.8, yaw:-.2 },
   result:{ target:[-6.6,.3,.15], w:3.6, h:3.4, tilt:.78, yaw:-.2, shift:.24 },
   chop:{ target:[-.35,.15,.05], w:4.6, h:3.2, tilt:.78, yaw:-.55 },
-  saute:{ target:[6.1,.5,.3], w:3.4, h:3, tilt:.98 },
-  boil:{ target:[8.15,.8,-.25], w:2.8, h:3, tilt:.95 },
+  // both burners in one shot: pan on the left, pot on the right
+  stove:{ target:[7.2,.55,0], w:4.7, h:3.1, tilt:1.0 },
   toss:{ target:[6.1,1.35,.3], w:3.4, h:4.3, tilt:.82 },
 };
 const HEAPS = [[-2.05,-.82],[-2.05,0],[-2.05,.82]];
@@ -378,6 +378,7 @@ export class PastaView {
     this.sauceDisc = this.mesh(new T.CylinderGeometry(.97, .97, .05, 48), this.sauceMat, { parent:this.panContents, cast:false, receive:true }); this.sauceDisc.position.y = .02; this.sauceDisc.visible = false;
     this.tossGroup = new T.Group(); this.panContents.add(this.tossGroup);
     this.panNest = this.mesh(tangleGeometry(17, .78, .2), this.mat.noodle, { parent:this.tossGroup }); this.panNest.position.y = .03; this.panNest.visible = false;
+    this.buildNoodles();
     // toss target band
     this.bandGroup = new T.Group(); this.bandGroup.position.set(PAN.x, 0, PAN.z); this.scene.add(this.bandGroup);
     this.band = this.mesh(new T.CylinderGeometry(1.18, 1.18, 1, 48, 1, true), this.mat.band, { parent:this.bandGroup, cast:false });
@@ -398,6 +399,129 @@ export class PastaView {
     this.foamSeeds = Array.from({ length:46 }, (_, i) => { const r = seeded(i + 90); return { a:r() * TAU, r:Math.sqrt(r()) * .82, s:.6 + r() * .7, p:r() * TAU }; });
     this.bubbles = new T.InstancedMesh(this.track(new T.SphereGeometry(.05, 8, 6)), this.mat.water, 24); pot.add(this.bubbles);
     this.bubbleSeeds = Array.from({ length:24 }, (_, i) => { const r = seeded(i + 300); return { a:r() * TAU, r:Math.sqrt(r()) * .8, p:r(), sp:.8 + r() * 1.2 }; });
+  }
+  // ── mantecatura: loose strands simulated as ropes in the pan's own frame ──
+  buildNoodles() {
+    const S = 40, P = 20, R = 6, n = S * P;
+    this.rope = { S, P, R, seg:.07, pos:new Float32Array(n * 3), prev:new Float32Array(n * 3), layer:new Float32Array(S), air:false, acc:0, comY:0, comV:0 };
+    const geo = new T.BufferGeometry(), idx = [];
+    geo.setAttribute('position', new T.BufferAttribute(new Float32Array(n * R * 3), 3).setUsage(T.DynamicDrawUsage));
+    geo.setAttribute('normal', new T.BufferAttribute(new Float32Array(n * R * 3), 3).setUsage(T.DynamicDrawUsage));
+    for (let s = 0; s < S; s++) for (let i = 0; i < P - 1; i++) for (let j = 0; j < R; j++) {
+      const a = (s * P + i) * R + j, b = (s * P + i) * R + (j + 1) % R; idx.push(a, b, a + R, b, b + R, a + R);
+    }
+    geo.setIndex(idx);
+    this.noodles = this.mesh(geo, this.mat.noodle, { parent:this.panContents }); this.noodles.frustumCulled = false; this.noodles.visible = false;
+    this.gLocal = new T.Vector3(); this.qTmp = new T.Quaternion();
+  }
+  // strands drop from the colander above into the pan in loose curls
+  resetNoodles() {
+    const R = this.rope, r = Math.random;
+    for (let s = 0; s < R.S; s++) {
+      const a0 = r() * TAU, rad = .15 + r() * .45, curl = (r() < .5 ? -1 : 1) * (.6 + r() * 1.4), h = 1.4 + r() * 1.1 + s * .03;
+      R.layer[s] = r() * .1;
+      let x = Math.cos(a0) * rad, z = Math.sin(a0) * rad, dir = r() * TAU;
+      for (let i = 0; i < R.P; i++) {
+        const k = (s * R.P + i) * 3;
+        R.pos[k] = x; R.pos[k + 1] = h + Math.sin(i * .7 + s) * .08; R.pos[k + 2] = z;
+        R.prev[k] = x; R.prev[k + 1] = R.pos[k + 1] + .02; R.prev[k + 2] = z;
+        dir += curl * R.seg * (1 + (r() - .5) * .6); x += Math.cos(dir) * R.seg; z += Math.sin(dir) * R.seg;
+      }
+    }
+    R.air = true; R.dropping = true; R.acc = 0; R.comY = 2;
+    for (const p of this.panPieces) p.phys = { p:p.base.clone().add(new T.Vector3(0, .9 + Math.random() * .6, 0)), v:new T.Vector3(), w:new T.Vector3() };
+    this.noodles.visible = true; this.panNest.visible = false;
+    this.drawNoodles();
+  }
+  // the pan flicks: every strand gets the lift for this height plus a spin that curls the nest over
+  launch(h) {
+    const R = this.rope, r = Math.random, v0 = Math.sqrt(2 * TOSS_G * h * TOSS_HEIGHT) * 1.07, w = -(2.3 + r() * .9) / flightTime(h), dt = 1 / 120;
+    let cy = 0, cz = 0; const n = R.S * R.P;
+    for (let i = 0; i < n; i++) { cy += R.pos[i * 3 + 1]; cz += R.pos[i * 3 + 2]; } cy /= n; cz /= n;
+    for (let s = 0; s < R.S; s++) {
+      const ks = 1 + (r() - .5) * .24, sx = (r() - .5) * .5, sz = (r() - .5) * .5;
+      for (let i = 0; i < R.P; i++) {
+        const k = (s * R.P + i) * 3, kp = 1 + (r() - .5) * .1, y = R.pos[k + 1], z = R.pos[k + 2];
+        const vx = sx + (r() - .5) * .2, vy = v0 * ks * kp - w * (z - cz), vz = sz + w * (y - cy);
+        R.prev[k] = R.pos[k] - vx * dt; R.prev[k + 1] = y - vy * dt; R.prev[k + 2] = z - vz * dt;
+      }
+    }
+    for (const p of this.panPieces) if (p.phys) { p.phys.v.set((r() - .5) * .6, v0 * (.8 + r() * .35), (r() - .5) * .6); p.phys.w.set((r() - .5) * 14, (r() - .5) * 6, (r() - .5) * 14); }
+    R.air = true; R.dropping = false;
+  }
+  swirl(dx) { this.swirlV = Math.max(-1.5, Math.min(1.5, (this.swirlV || 0) + dx * .02)); }
+  updateNoodles(dt) {
+    const R = this.rope, h = 1 / 120;
+    this.panContents.getWorldQuaternion(this.qTmp).invert();
+    this.gLocal.set(0, -TOSS_G, 0).applyQuaternion(this.qTmp);
+    const gx = this.gLocal.x * h * h, gy = this.gLocal.y * h * h, gz = this.gLocal.z * h * h, sw = (this.swirlV || 0) * 4 * h * h;
+    const floorAt = (x, z) => { const rr = Math.hypot(x, z); return rr < .9 ? 0 : (rr - .9) * .85; };
+    R.acc = Math.min(R.acc + dt, 4 / 120);
+    const n = R.S * R.P, P = R.pos, Q = R.prev;
+    while (R.acc >= h) {
+      R.acc -= h;
+      for (let i = 0; i < n; i++) {
+        const k = i * 3, x = P[k], y = P[k + 1], z = P[k + 2], rr = Math.hypot(x, z) || 1;
+        const vx = (x - Q[k]) * .995, vy = (y - Q[k + 1]) * .995, vz = (z - Q[k + 2]) * .995;
+        Q[k] = x; Q[k + 1] = y; Q[k + 2] = z;
+        P[k] = x + vx + gx - z / rr * sw; P[k + 1] = y + vy + gy; P[k + 2] = z + vz + gz + x / rr * sw;
+      }
+      for (let it = 0; it < 4; it++) for (let s = 0; s < R.S; s++) {
+        const base = s * R.P, lift = .022 + R.layer[s];
+        for (let i = 0; i < R.P - 1; i++) this.constrain(base + i, base + i + 1, R.seg, 1);
+        // a little stiffness keeps strands from folding into sharp kinks
+        for (let i = 0; i < R.P - 2; i++) this.constrain(base + i, base + i + 2, R.seg * 1.85, .22, true);
+        for (let i = 0; i < R.P; i++) {
+          const k = (base + i) * 3, rr = Math.hypot(P[k], P[k + 2]);
+          if (rr > 1.1 && P[k + 1] < .34) { P[k] *= 1.1 / rr; P[k + 2] *= 1.1 / rr; }
+          const f = floorAt(P[k], P[k + 2]) + lift;
+          if (P[k + 1] < f && P[k + 1] > f - .6) { P[k + 1] = f; Q[k + 1] = f; Q[k] = P[k] - (P[k] - Q[k]) * .55; Q[k + 2] = P[k + 2] - (P[k + 2] - Q[k + 2]) * .55; }
+        }
+      }
+    }
+    // gentle simmer between tosses so the pile keeps breathing
+    if (!R.air && this.game.state === 'play' && !this.reduced) for (let i = 0; i < 2; i++) { const k = Math.floor(Math.random() * n) * 3; Q[k + 1] -= .0012; }
+    let cy = 0; for (let i = 0; i < n; i++) cy += P[i * 3 + 1]; cy /= n;
+    R.comV = (cy - R.comY) / Math.max(dt, 1e-3); R.comY = cy;
+    if (R.air && R.comV < 0 && cy < .16) this.landed();
+    for (const p of this.panPieces) {
+      const ph = p.phys; if (!ph) continue;
+      ph.v.addScaledVector(this.gLocal, dt); ph.p.addScaledVector(ph.v, dt);
+      const rr = Math.hypot(ph.p.x, ph.p.z); if (rr > 1.05) { ph.p.x *= 1.05 / rr; ph.p.z *= 1.05 / rr; }
+      const f = floorAt(ph.p.x, ph.p.z) + .05;
+      if (ph.p.y < f) { ph.p.y = f; ph.v.y = ph.v.y < -1.5 ? -ph.v.y * .25 : 0; ph.v.x *= .6; ph.v.z *= .6; ph.w.multiplyScalar(.4); }
+      p.mesh.position.copy(ph.p); p.mesh.rotation.x += ph.w.x * dt; p.mesh.rotation.z += ph.w.z * dt;
+    }
+    this.drawNoodles();
+  }
+  constrain(a, b, len, stiff, minOnly = false) {
+    const P = this.rope.pos, i = a * 3, j = b * 3, dx = P[j] - P[i], dy = P[j + 1] - P[i + 1], dz = P[j + 2] - P[i + 2], d = Math.hypot(dx, dy, dz) || 1e-6;
+    if (minOnly && d >= len) return;
+    const k = (d - len) / d * .5 * stiff;
+    P[i] += dx * k; P[i + 1] += dy * k; P[i + 2] += dz * k; P[j] -= dx * k; P[j + 1] -= dy * k; P[j + 2] -= dz * k;
+  }
+  landed() {
+    const R = this.rope, g = this.game; R.air = false;
+    if (R.dropping) { R.dropping = false; this.sfx.splash(); return; }
+    this.sfx.land(); this.landT = 0;
+    const c = new T.Vector3(PAN.x, PAN_FLOOR + .3, PAN.z), last = g.toss.results.at(-1), high = last?.grade === 'high';
+    this.burst(c, g.recipe.color, high ? 14 : 5, { speed:high ? 2.6 : 1.2, size:.04, spread:1.2, stain:high });
+  }
+  drawNoodles() {
+    const R = this.rope, pa = this.noodles.geometry.attributes.position, na = this.noodles.geometry.attributes.normal, A = pa.array, N = na.array, P = R.pos;
+    for (let s = 0; s < R.S; s++) for (let i = 0; i < R.P; i++) {
+      const id = s * R.P + i, k = id * 3, a = (s * R.P + Math.max(0, i - 1)) * 3, b = (s * R.P + Math.min(R.P - 1, i + 1)) * 3;
+      let tx = P[b] - P[a], ty = P[b + 1] - P[a + 1], tz = P[b + 2] - P[a + 2]; const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+      // ring frame around the tangent
+      let nx, ny, nz; if (Math.abs(ty) < .9) { nx = -tz; ny = 0; nz = tx; } else { nx = 0; ny = tz; nz = -ty; }
+      const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+      const bx = ty * nz - tz * ny, by = tz * nx - tx * nz, bz = tx * ny - ty * nx, rad = i === 0 || i === R.P - 1 ? .016 : .024;
+      for (let j = 0; j < R.R; j++) {
+        const an = j / R.R * TAU, c = Math.cos(an), sn = Math.sin(an), dx = nx * c + bx * sn, dy = ny * c + by * sn, dz = nz * c + bz * sn, v = (id * R.R + j) * 3;
+        A[v] = P[k] + dx * rad; A[v + 1] = P[k + 1] + dy * rad; A[v + 2] = P[k + 2] + dz * rad; N[v] = dx; N[v + 1] = dy; N[v + 2] = dz;
+      }
+    }
+    pa.needsUpdate = na.needsUpdate = true;
   }
   buildPlateStation() {
     const plate = this.plate = new T.Group(); plate.position.copy(PLATE); this.scene.add(plate);
@@ -476,9 +600,8 @@ export class PastaView {
     const was = this.phaseShown; this.phaseShown = key;
     if (phase === 'recipe') { this.buildDish(null); this.dishSpin = 0; }
     if (phase === 'chop' && !was.startsWith('chop')) this.resetBoard();
-    if (phase === 'saute') this.fillPan();
-    if (phase === 'boil') { this.potNest.visible = false; this.sticksDrop = -1; }
-    if (phase === 'toss') { this.panPieces.forEach(p => { p.mesh.visible = p.i % 2 === 0; }); this.panNest.visible = true; this.panNest.userData.drop = 0; this.sauceDisc.scale.set(.9, 1, .9); }
+    if (phase === 'stove') { this.fillPan(); this.potNest.visible = false; this.sticksDrop = -1; }
+    if (phase === 'toss') { this.panPieces.forEach(p => { p.mesh.visible = p.i % 2 === 0; }); this.sauceDisc.scale.set(.9, 1, .9); this.resetNoodles(); }
     if (phase === 'result') {
       this.buildDish({ ...g.result, recipe:g.recipe, slices:g.chop.slices, burn:g.saute.burn });
       this.sfx.level('sizzle', 0); this.sfx.level('boil', 0);
@@ -488,7 +611,7 @@ export class PastaView {
     for (const s of this.slices) this.scene.remove(s.pivot);
     this.slices = []; this.remainKey = ''; this.knifeT = 1; this.fever = false;
     for (const p of this.panPieces) p.mesh.parent?.remove(p.mesh);
-    this.panPieces = []; this.sauceDisc.visible = false; this.panNest.visible = false;
+    this.panPieces = []; this.sauceDisc.visible = false; this.panNest.visible = false; this.noodles.visible = false;
   }
   fillPan() {
     const g = this.game, r = seeded(99);
@@ -563,16 +686,10 @@ export class PastaView {
     if (e.type === 'stir') { this.stirT = 0; this.sfx.burst({ freq:900, sweep:300, q:.7, vol:.2, dur:.25 }); }
     if (e.type === 'overflow') { this.sfx.splash(); this.burst(new T.Vector3(POT.x, WATER + .2, POT.z), 0xf6fbff, 22, { speed:2.2, size:.05, spread:1 }); if (!this.reduced) this.shake = .15; }
     if (e.type === 'drain') { this.drainT = 0; this.sfx.splash(); }
-    if (e.type === 'begin' && e.phase === 'boil') { this.sticksDrop = 0; this.sfx.splash(); }
-    if (e.type === 'toss') { this.flight = { t:0, h:e.height, grade:e.grade }; this.sfx.whoosh(); }
-    if (e.type === 'land') {
-      this.sfx.land(); this.landT = 0;
-      const last = g.toss.results.at(-1);
-      if (last?.grade === 'high') {
-        const c = new T.Vector3(PAN.x, PAN_FLOOR + .3, PAN.z);
-        this.burst(c, g.recipe.color, 14, { speed:2.6, size:.045, spread:1.4, stain:true });
-      }
-    }
+    if (e.type === 'begin' && e.phase === 'stove') { this.sticksDrop = 0; this.sfx.splash(); }
+    if (e.type === 'toss') { this.flick = 0; this.launch(e.height); this.sfx.whoosh(); }
+    // the physics usually lands first; this only covers a toss that never came back down
+    if (e.type === 'land' && this.rope.air) this.landed();
   }
   burst(at, color, n, { speed = 1.5, size = .03, spread = .6, stain = false } = {}) {
     if (this.preview) return;
@@ -597,7 +714,16 @@ export class PastaView {
   }
 
   // ── camera ──
-  stationFor(phase) { return phase === 'chop' ? 'chop' : phase === 'saute' ? 'saute' : phase === 'boil' ? 'boil' : phase === 'toss' ? 'toss' : phase === 'result' ? 'result' : 'plate'; }
+  stationFor(phase) { return phase === 'chop' ? 'chop' : phase === 'stove' ? 'stove' : phase === 'toss' ? 'toss' : phase === 'result' ? 'result' : 'plate'; }
+  // where a burner sits on screen, for telling a pan press from a pot tap
+  screenOf(which) {
+    const c = which === 'pan' ? new T.Vector3(PAN.x, PAN_FLOOR + .1, PAN.z) : new T.Vector3(POT.x, WATER, POT.z), p = c.project(this.camera), r = this.canvas.getBoundingClientRect();
+    return { x:r.left + (p.x + 1) / 2 * r.width, y:r.top + (1 - p.y) / 2 * r.height };
+  }
+  burnerAt(clientX, clientY) {
+    const a = this.screenOf('pan'), b = this.screenOf('pot');
+    return Math.hypot(clientX - a.x, clientY - a.y) <= Math.hypot(clientX - b.x, clientY - b.y) ? 'pan' : 'pot';
+  }
   frame(st) {
     const s = STATIONS[st], a = Math.max(.3, this.aspect || 1), th = Math.tan(T.MathUtils.degToRad(this.camera.fov / 2));
     // shift lifts the subject above an overlay at the bottom of the canvas
@@ -698,13 +824,13 @@ export class PastaView {
   updateStove(dt, phase) {
     const g = this.game, s = g.saute, b = g.boil, playing = g.phase !== 'paused';
     // pan flame & contents
-    const flame = phase === 'saute' ? s.flame : phase === 'toss' ? .55 : 0;
+    const flame = phase === 'stove' ? s.flame : phase === 'toss' ? .55 : 0;
     this.panFlame.visible = flame > .02;
     this.panFlame.children.forEach((f, i) => { const fl = .35 + flame * 1.1 + Math.sin(this.time * 30 + i * 2) * .08; f.scale.set(1 + flame * .4, fl * 1.1, 1 + flame * .4); });
-    const boiling = phase === 'boil';
+    const boiling = phase === 'stove';
     this.potFlame.visible = boiling;
     if (boiling) this.potFlame.children.forEach((f, i) => f.scale.set(1, .9 + Math.sin(this.time * 28 + i) * .1, 1));
-    if (phase === 'saute') {
+    if (phase === 'stove') {
       const z = sauteZone(s.t), hot = s.temp > z.center + z.half, inZone = Math.abs(s.temp - z.center) <= z.half;
       const cook = clamp01(s.cook / 13 * .55), burn = clamp01(s.burn / 3);
       for (const kind in this.panMats) for (const m of this.panMats[kind]) m.color.setRGB(1, 1, 1).lerp(new T.Color(0x9b6a3c), cook).lerp(new T.Color(0x2a1a10), burn);
@@ -718,9 +844,9 @@ export class PastaView {
       this.sfx.level('sizzle', playing && g.state === 'play' ? .05 + s.temp * .35 : 0, 'highpass', 3200, .4);
     } else if (phase !== 'toss') this.sfx.level('sizzle', 0);
     // pot
-    const water = phase === 'boil' || phase === 'toss' ? 1 : .4;
+    const water = phase === 'stove' || phase === 'toss' ? 1 : .4;
     this.water.material.opacity = .32 + water * .1;
-    this.sticks.visible = phase === 'boil' && this.sticksDrop !== undefined;
+    this.sticks.visible = phase === 'stove' && this.sticksDrop !== undefined;
     if (this.sticks.visible) {
       const tDrop = this.sticksDrop < 0 ? 0 : (this.sticksDrop += dt);
       const soften = this.sticksDrop < 0 ? 0 : clamp01(tDrop / 2.4), sink = this.sticksDrop < 0 ? -1 : ease(tDrop / .35);
@@ -737,7 +863,7 @@ export class PastaView {
       if (soften >= 1) this.sticks.visible = false;
       this.potNest.visible = soften > .6;
     }
-    if (phase === 'boil') {
+    if (phase === 'stove') {
       const d = b.done, col = new T.Color(d < .45 ? NOODLE.raw : d < .7 ? NOODLE.firm : d <= .82 ? NOODLE.aldente : d < 1 ? NOODLE.soft : NOODLE.mushy);
       this.mat.potNoodle.color.lerp(col, 1 - Math.exp(-dt * 3));
       this.potNest.rotation.y += dt * .3;
@@ -747,7 +873,7 @@ export class PastaView {
       this.sfx.level('boil', playing && g.state === 'play' ? .12 + b.foam * .2 : 0, 'lowpass', 520, .8);
       if (playing && g.state === 'play' && Math.random() < dt * 9) this.sfx.pop();
     } else { this.sfx.level('boil', 0); this.drainT = undefined; this.potNest.visible = false; }
-    const foam = phase === 'boil' ? b.foam : 0, bubbling = phase === 'boil' || phase === 'toss';
+    const foam = phase === 'stove' ? b.foam : 0, bubbling = phase === 'stove' || phase === 'toss';
     this.stirT = (this.stirT ?? 9) + dt;
     const mtx = new T.Matrix4();
     this.foamSeeds.forEach((sd, i) => {
@@ -776,26 +902,18 @@ export class PastaView {
     if (phase === 'toss') {
       const coat = clamp01(.3 + t.results.length * .2);
       this.mat.noodle.color.set(NOODLE[g.noodleState()]).lerp(new T.Color(g.recipe.color), coat * (g.recipe.id === 'cream' ? .4 : .55));
-      if (this.panNest.userData.drop < 1) { this.panNest.userData.drop += dt * 1.8; this.panNest.position.y = .03 + (1 - ease(this.panNest.userData.drop)) * 2.5; }
-      for (const p of this.panPieces) p.mesh.position.copy(p.base);
-      let lift = 0, tilt = 0, flip = 0;
-      if (t.charging) { tilt = t.power * .22; lift = -t.power * .05; }
-      if (this.flight) {
-        const F = this.flight; F.t += dt;
-        const u = clamp01(F.t / 1.0);
-        lift = 4 * F.h * TOSS_HEIGHT * u * (1 - u);
-        flip = -u * Math.PI * Math.min(1.2, .4 + F.h * 1.1);
-        tilt = -.35 * Math.sin(Math.min(1, F.t / .2) * Math.PI);
-        if (u >= 1) this.flight = null;
-      }
+      // charging tips the pan back so the strands slide to the far lip; the flick snaps it forward
+      let tilt = t.charging ? t.power * .22 : 0;
+      if (this.flick != null) { this.flick += dt; tilt = -.35 * Math.sin(Math.min(1, this.flick / .2) * Math.PI); if (this.flick > .2) this.flick = null; }
       this.landT = (this.landT ?? 9) + dt;
-      const squash = this.landT < .3 ? 1 - Math.sin(this.landT / .3 * Math.PI) * .18 : 1;
-      this.tossGroup.position.y = lift; this.tossGroup.rotation.x = flip; this.tossGroup.scale.set(1, squash, 1);
-      this.pan.rotation.x = tilt; this.pan.position.y = PAN.y + Math.max(0, -tilt) * .25;
+      this.swirlV = (this.swirlV || 0) * Math.exp(-dt * 3);
+      this.pan.rotation.set(tilt, -.45 + this.swirlV * .08, 0); this.pan.position.y = PAN.y + Math.max(0, -tilt) * .25 - (this.landT < .2 ? Math.sin(this.landT / .2 * Math.PI) * .03 : 0);
+      this.pan.updateMatrixWorld(true);
+      if (g.phase !== 'paused') this.updateNoodles(dt);
       this.sauceDisc.visible = true; this.sauceDisc.scale.set(.85, 1, .85);
       this.sfx.level('sizzle', g.phase !== 'paused' && g.state === 'play' ? .1 : 0, 'highpass', 3200, .4);
-    } else { this.tossGroup.position.y = 0; this.tossGroup.rotation.x = 0; this.tossGroup.scale.set(1, 1, 1); this.pan.rotation.x = 0; this.pan.position.y = PAN.y; this.panNest.visible = false; }
-    this.panContents.visible = phase === 'saute' || phase === 'toss';
+    } else { this.pan.rotation.set(0, -.45, 0); this.pan.position.y = PAN.y; this.panNest.visible = false; this.noodles.visible = false; }
+    this.panContents.visible = phase === 'stove' || phase === 'toss';
   }
   updateParticles(dt) {
     for (const p of this.particles) {

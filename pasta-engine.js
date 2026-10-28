@@ -1,7 +1,7 @@
 import { clamp, rng } from './engine.js';
 
-// Four stations, four different hands: rhythm chopping, heat balancing,
-// al dente timing under a foaming pot, and a strength-controlled pan toss.
+// Three stations: rhythm chopping, then two burners at once (a pan that wants its
+// flame held and a pot that foams over unless tapped), then the mantecatura toss.
 export const SAUCES = [
   { id:'tomato', name:'토마토', subtitle:'상큼한 토마토와 마늘', color:0xc8321d, light:0xff7a45, ingredients:['tomato','onion','garlic'] },
   { id:'cream', name:'크림', subtitle:'고소한 버섯과 베이컨', color:0xf0dfba, light:0xfff6e0, ingredients:['mushroom','bacon','onion'] },
@@ -37,11 +37,14 @@ const WANTS = {
 export const FEVER_COMBO = 5;
 export const FLAMBE_AT = 8.8;
 
-export const PHASES = ['chop','saute','boil','toss'];
-export const SAUTE_TIME = 13;
+export const PHASES = ['chop','stove','toss'];
+export const SAUCE_AT = 4.5;
 export const ALDENTE = [.70,.82];
-export const BOIL_TIME = 10;
+export const BOIL_TIME = 15;
 export const TOSS_HEIGHT = 2.5;
+// the pasta flies under this gravity, so a higher toss takes longer to come back
+export const TOSS_G = 16;
+export const flightTime = h => Math.max(.55, 2 * Math.sqrt(2 * TOSS_G * h * TOSS_HEIGHT) / TOSS_G);
 
 export function grade(thickness, width) {
   const e = (thickness - width) / width;
@@ -135,18 +138,18 @@ export class PastaGame {
     return Math.round(Math.min(100, s.reduce((a, b) => a + b.score, 0) / s.length + Math.min(6, this.chop.maxCombo)));
   }
 
-  // ── 2. sauté: hold to raise the flame, the pan answers with lag ──
+  // ── 2. stove: hold the pan to raise its flame (it answers with lag), tap the pot ──
   hold(on) {
-    if (this.phase !== 'saute') return;
+    if (this.phase !== 'stove') return;
     this.saute.pressed = !!on;
     if (on && this.state === 'intro') this.begin();
     this.saute.holding = this.saute.pressed && this.state === 'play';
   }
-  heatScore() { const s = this.saute; return Math.round(clamp(s.inZone / SAUTE_TIME * 108 + (s.flambe ? 10 : 0) - s.burn * 12, 0, 100)); }
+  heatScore() { const s = this.saute; return Math.round(clamp(s.inZone / Math.max(8, s.t) * 108 + (s.flambe ? 10 : 0) - s.burn * 12, 0, 100)); }
 
-  // ── 3. boil: tap to knock the foam down, drain in the al dente window ──
+  // the pot: tap to knock the foam down, drain in the al dente window
   stir() {
-    if (this.phase !== 'boil') return false;
+    if (this.phase !== 'stove') return false;
     if (this.state === 'intro') return this.begin();
     if (this.state !== 'play') return false;
     const b = this.boil; b.foam = Math.max(.05, b.foam - .3); b.stirs++;
@@ -154,7 +157,8 @@ export class PastaGame {
     return true;
   }
   drain() {
-    if (this.phase !== 'boil' || this.state !== 'play') return false;
+    if (this.phase !== 'stove' || this.state !== 'play') return false;
+    this.saute.holding = false;
     this.events.push({ type:'drain', done:this.boil.done });
     this.complete(1.1);
     return true;
@@ -184,7 +188,7 @@ export class PastaGame {
     const [lo, hi] = t.bands[t.results.length], h = t.power;
     const off = h < lo ? lo - h : h > hi ? h - hi : 0;
     const r = { height:h, band:[lo, hi], score:Math.round(clamp(100 - off * 380, 0, 100)), grade:off === 0 ? 'perfect' : off < .1 ? 'good' : h > hi ? 'high' : 'low' };
-    t.results.push(r); t.flight = 1.05; t.power = 0;
+    t.results.push(r); t.flight = flightTime(h); t.power = 0;
     this.events.push({ type:'toss', ...r, n:t.results.length, bravo:t.results.length === 3 && t.results.every(x => x.grade === 'perfect') });
     return r;
   }
@@ -202,7 +206,7 @@ export class PastaGame {
     }
     if (this.phase === 'chop') this.chop.knife += dt;
     // A press held through the intro lock still starts the burner.
-    if (this.phase === 'saute' && this.state === 'intro' && this.saute.pressed && this.begin()) this.saute.holding = true;
+    if (this.phase === 'stove' && this.state === 'intro' && this.saute.pressed && this.begin()) this.saute.holding = true;
     if (this.state !== 'play') return;
     if (this.phase === 'chop') {
       const c = this.chop, ing = this.ingredient;
@@ -210,7 +214,7 @@ export class PastaGame {
       c.feed += ing.speed * (c.fever ? 1.12 : 1) * dt;
       if (c.feed - c.lastCut > ing.width * 2.1 || c.feed > ing.length + ing.width * .5) this.addSlice(Math.min(c.feed, ing.length) - c.lastCut, true);
     }
-    if (this.phase === 'saute') {
+    if (this.phase === 'stove') {
       const s = this.saute;
       s.t += dt;
       s.flame = clamp(s.flame + (s.holding ? 2.6 : -2.6) * dt, 0, 1);
@@ -219,13 +223,11 @@ export class PastaGame {
       if (Math.abs(s.temp - z.center) <= z.half) { s.inZone += dt; s.cook += dt; }
       else if (s.temp > top) { s.burn += (s.temp - top) * dt * 4; s.cook += dt * .8; }
       else s.cook += dt * .3;
-      if (!s.sauce && s.t >= SAUTE_TIME * .45) { s.sauce = true; this.events.push({ type:'sauce' }); }
+      if (!s.sauce && s.t >= SAUCE_AT) { s.sauce = true; this.events.push({ type:'sauce' }); }
       // the wine goes in: only a hot pan under a held flame catches it
       if (!s.cue && s.t >= FLAMBE_AT - 1.6) { s.cue = true; this.events.push({ type:'flambeCue' }); }
       if (s.flambe == null && s.t >= FLAMBE_AT) { s.flambe = s.holding && s.temp >= z.center - z.half * .25; this.events.push({ type:'flambe', ok:s.flambe }); }
-      if (s.t >= SAUTE_TIME) { s.holding = false; this.complete(.9); }
-    }
-    if (this.phase === 'boil') {
+      // the pot boils on the next burner the whole time
       const b = this.boil;
       b.t += dt; b.done = doneness(b.t);
       b.gust -= dt;
