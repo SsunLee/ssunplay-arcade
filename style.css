@@ -1281,4 +1281,168 @@ dialog a {
 .beer .result-card .boast-button { min-height:48px;background:#152830;color:#fff;border:0; }
 .beer .result-card { max-height:100%;overflow:auto; }
 @media (max-height:650px) { .boast-dialog { padding:24px 20px 18px; }.boast-card { margin-top:12px;padding:12px; }.boast-score { font-size:46px;margin:4px 0 8px; }.boast-dialog .share-options { margin-top:12px; }.beer .result-card { padding:22px 24px; } }
+
+/* Shared language switch, without restarting the active game. */
+.language-control { display:flex;align-items:center;gap:3px;flex-shrink:0;color:#243833; }
+.language-control > span { font-size:19px; }
+.language-control select { min-height:44px;max-width:90px;border:0;background:transparent;font:600 11px/1.2 inherit;color:inherit;cursor:pointer; }
+.language-control option { color:#152830;background:#fff; }
+.game-header nav { gap:12px;margin-left:auto; }
+.game-header { gap:12px; }
+.beer-drag-guide { position:absolute;bottom:82px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100% - 26px);text-align:center;color:#fff;background:#12352bd9;border:1px solid #ffffff3d;border-radius:14px;padding:9px 14px 10px;pointer-events:none;transition:opacity .25s,transform .25s; }
+.beer-drag-guide b { display:block;font-size:12px;line-height:1.5; }
+.beer-drag-guide small { display:block;font-size:10px;color:#c6e0d6;margin-top:2px; }
+.beer-drag-guide.learned { opacity:0;transform:translate(-50%,8px); }
+.drag-track { width:92px;height:32px;margin:0 auto 3px;position:relative; }
+.drag-track > span { font-size:27px;line-height:26px;letter-spacing:20px;color:#c6e0d6; }
+.drag-track svg { position:absolute;width:26px;height:26px;left:33px;top:4px;fill:#fff;stroke:#153b31;stroke-width:1.3;animation:show-drag 2s ease-in-out infinite; }
+@keyframes show-drag { 0%,100% { transform:translateX(-22px) rotate(-10deg); } 50% { transform:translateX(22px) rotate(10deg); } }
+.game-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.pasta-card .card-visual { background:#143c35; }
+@media (max-width:900px) { .game-header .bar-title { display:none; } }
+@media (max-width:700px) {
+ .game-grid { grid-template-columns:1fr; }
+ .game-header nav,.site-header nav { gap:9px; }.language-control select { max-width:78px;font-size:10px; }
+ .game-header { padding:0 12px; }.game-header .brand { font-size:13px;gap:6px; }
+ .site-header { padding:0 16px;gap:12px; }.site-header .brand small { display:none; }.site-header .brand { font-size:18px; }
+ .site-header nav [data-action="records"],.site-header nav [data-action="sound"] { display:none; }
+ .beer-drag-guide b { font-size:11px; }.beer-drag-guide small { font-size:9px; }
+}
+@media (max-width:400px) { .game-header .brand > span { display:none; }.game-header nav { gap:8px; } }
+@media (max-height:500px) and (orientation:landscape) {
+ .beer-drag-guide { bottom:70px;left:65%;padding:5px 10px; }.drag-track { height:26px; }
+}
+@media (prefers-reduced-motion:reduce) { .drag-track svg { animation:none; }.beer-drag-guide { transition:none; } }
 @media (max-width:700px) { .beer .hud-left { max-width:calc(100% - 154px);gap:5px; } }
+/* Pasta: four kitchen stations, one thumb. */
+.pasta { display:flex;flex-direction:column;background:#163a32;color:#fff;overflow:hidden;--p-accent:#ff8a57;--p-good:#8fe0a9;--p-gold:#ffd36a; }
+.pasta-top { display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 22px 10px;flex-shrink:0; }
+.pasta-heading { min-width:0;flex:1; }
+.pasta-eyebrow { font-size:9px;letter-spacing:.24em;color:#9cc9b6;font-weight:800; }
+.pasta-top h1 { font-size:23px;letter-spacing:-.8px;margin:4px 0 2px;line-height:1.2; }
+.pasta-instruction { margin:0;font-size:12px;line-height:1.45;color:#cfe3da; }
+.pasta .controls { flex-shrink:0; }
+.pasta .controls button { height:42px;width:42px;background:#ffffff12;color:#fff;border:1px solid #ffffff4d;box-shadow:none; }
+.pasta-viewport { position:relative;flex:1;min-height:0;isolation:isolate;background:#2a2420; }
+.pasta #game { position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:pointer;outline:none; }
+.pasta[data-stage="toss"] #game { cursor:ns-resize; }
+.pasta-steps { position:absolute;top:10px;left:12px;display:flex;gap:4px;margin:0;padding:4px;list-style:none;background:#1b1512b3;border-radius:20px;pointer-events:none;backdrop-filter:blur(6px); }
+.pasta-steps li { display:flex;align-items:center;gap:5px;padding:3px 8px 3px 3px;border-radius:14px;font-size:10px;font-weight:800;color:#ffffff80; }
+.pasta-steps i { width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10px;background:#ffffff1f; }
+.pasta-steps li.active { background:#fff;color:#173b31; }
+.pasta-steps li.active i { background:var(--p-accent);color:#fff; }
+.pasta-steps li.done { color:#bfe8cf; }
+.pasta-steps li.done i { background:#3e8a5f;color:#fff; }
+.pasta[data-stage="recipe"] .pasta-steps,.pasta[data-stage="result"] .pasta-steps { display:none; }
+.pasta-pop { position:absolute;top:22%;left:50%;transform:translate(-50%,0) scale(.6);font:900 34px/1 "Space Grotesk","Noto Sans KR",system-ui,sans-serif;letter-spacing:-1px;color:#fff6d8;text-shadow:0 3px 0 #8f2f18,0 6px 18px #0007;opacity:0;pointer-events:none;white-space:nowrap;z-index:3; }
+.pasta-pop.perfect { color:#fff3b0;text-shadow:0 3px 0 #b5531c,0 0 22px #ffcf6a99,0 6px 18px #0007; }
+.pasta-pop.good { color:#d9ffe6;text-shadow:0 3px 0 #2a6a45,0 6px 18px #0007; }
+.pasta-pop.thick,.pasta-pop.thin,.pasta-pop.high,.pasta-pop.low,.pasta-pop.miss { color:#ffe1d6;font-size:27px;text-shadow:0 3px 0 #7a2a1d,0 6px 18px #0007; }
+.pasta-pop.show { animation:pasta-pop .75s cubic-bezier(.2,1.4,.4,1) forwards; }
+@keyframes pasta-pop { 0% { opacity:0;transform:translate(-50%,12px) scale(.6) rotate(-4deg); } 18% { opacity:1;transform:translate(-50%,0) scale(1.08) rotate(-4deg); } 70% { opacity:1;transform:translate(-50%,-6px) scale(1) rotate(-4deg); } 100% { opacity:0;transform:translate(-50%,-22px) scale(.95) rotate(-4deg); } }
+.pasta-gauge { position:absolute;right:12px;top:50%;transform:translateY(-50%);width:44px;height:min(260px,62%);display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 0 10px;background:#1b1512c4;border-radius:22px;pointer-events:none;backdrop-filter:blur(6px); }
+.pasta-gauge > b { font-size:10px;color:#f4e6d6; }
+.gauge-track { position:relative;flex:1;width:12px;border-radius:6px;background:linear-gradient(#ff5d3a,#ffb347 45%,#6fb7ff); }
+.pasta-gauge[data-kind="boil"] .gauge-track { background:linear-gradient(#ffffff,#d8eef2); }
+.pasta-gauge[data-kind="toss"] .gauge-track { background:#ffffff26; }
+.gauge-zone { position:absolute;left:-6px;right:-6px;border:2px solid var(--p-good);border-radius:7px;background:#8fe0a940; }
+.pasta-gauge[data-kind="boil"] .gauge-zone { border-color:#ff7a5c;background:#ff7a5c44; }
+.pasta-gauge[data-kind="toss"] .gauge-zone { border-color:var(--p-gold);background:#ffd36a40; }
+.gauge-needle { position:absolute;left:-9px;right:-9px;height:4px;margin-bottom:-2px;border-radius:2px;background:#fff;box-shadow:0 0 0 2px #1b1512,0 0 10px #fff; }
+.pasta[data-heat="hot"] .gauge-needle { background:#ff6a45;box-shadow:0 0 0 2px #1b1512,0 0 14px #ff6a45; }
+.pasta[data-foam="high"] .pasta-gauge { animation:pasta-warn .4s ease-in-out infinite alternate; }
+@keyframes pasta-warn { to { background:#7a2a1dd9; } }
+.pasta-intro { position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:min(360px,calc(100% - 28px));padding:16px 18px 14px;border-radius:18px;background:#fffaf0f2;color:#1f3a31;text-align:center;box-shadow:0 14px 40px #0007;pointer-events:none;animation:pasta-intro .45s cubic-bezier(.2,1.2,.4,1) both;z-index:4; }
+@keyframes pasta-intro { from { opacity:0;transform:translate(-50%,20px); } }
+.intro-step { font-size:10px;letter-spacing:.2em;font-weight:900;color:#c4572f; }
+.pasta-intro h2 { margin:4px 0 6px;font-size:24px;letter-spacing:-.8px; }
+.pasta-intro p { margin:0 0 12px;font-size:12px;line-height:1.55;color:#4d6158; }
+.intro-hint { display:inline-flex;align-items:center;gap:8px;padding:8px 16px 8px 10px;border-radius:22px;background:#1f3a31;color:#fff;font-size:13px; }
+.intro-icon svg { width:28px;height:28px;display:block;fill:#fff;stroke:#1f3a31;stroke-width:1; }
+.intro-icon .ring { fill:none;stroke:var(--p-accent);stroke-width:2;animation:pasta-tap 1.2s ease-out infinite;transform-origin:16px 12px; }
+.intro-icon .pulse { animation-duration:1.6s; }
+.intro-icon .arrow { fill:var(--p-accent);stroke:none;animation:pasta-up 1.1s ease-in-out infinite; }
+@keyframes pasta-tap { from { transform:scale(.4);opacity:1; } to { transform:scale(1.3);opacity:0; } }
+@keyframes pasta-up { 0%,100% { transform:translateY(3px); } 50% { transform:translateY(-3px); } }
+.pasta-status { position:absolute;inset:0;display:grid;place-items:center;background:#1b1512b3;color:#fff;font-size:24px;font-weight:800;z-index:5; }
+.pasta-bottom { flex-shrink:0;padding:12px 22px max(10px,env(safe-area-inset-bottom));background:#10302a;border-top:1px solid #ffffff1a; }
+.pasta-bottom > * { max-width:600px;margin-left:auto;margin-right:auto; }
+.pasta-recipes { display:grid;grid-template-columns:repeat(4,1fr);gap:8px; }
+.pasta-recipes button { min-height:54px;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid #ffffff3d;border-radius:12px;color:#d5e8de;font-size:12px;padding:8px 6px;transition:background .15s,border-color .15s,transform .1s; }
+.pasta-recipes button[aria-pressed="true"] { background:#fff;color:#173b31;border-color:#fff; }
+.pasta-recipes button:active { transform:scale(.97); }
+.sauce-dot { width:18px;height:18px;flex-shrink:0;border-radius:50%;background:var(--sauce);box-shadow:inset 0 0 0 3px #ffffff38,0 0 0 1px #0002; }
+.pasta-recipe-note { text-align:center;color:#b2d1c4;font-size:11px;margin:8px auto 10px; }
+.pasta-chips { display:flex;justify-content:center;gap:6px;margin-bottom:10px;flex-wrap:wrap; }
+.pasta-chips span { display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:16px;border:1px solid #ffffff2e;font-size:11px;color:#a9c8bb;font-weight:700; }
+.pasta-chips span.active { border-color:#fff;color:#fff;background:#ffffff14; }
+.pasta-chips span.done,.pasta-chips span.perfect { color:#bfeccd;border-color:#3e8a5f;background:#3e8a5f33; }
+.pasta-chips span.good { color:#fff3c4;border-color:#b99a3c; }
+.pasta-chips span.high,.pasta-chips span.low { color:#ffd0c2;border-color:#a2513b; }
+.pasta-chips i { width:10px;height:10px;border-radius:50%; }
+.pasta-meter { margin-bottom:10px; }
+.meter-track { position:relative;height:10px;border-radius:5px;background:#2f5447;overflow:hidden; }
+.meter-track i { position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#f0c76a,var(--p-accent));border-radius:5px; }
+.meter-window { position:absolute;top:0;bottom:0;background:#8fe0a955;border-left:2px solid var(--p-good);border-right:2px solid var(--p-good);z-index:1; }
+.meter-scale { display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:#9fc2b3; }
+.meter-scale span:nth-child(2) { color:var(--p-good);font-weight:800;margin-left:12%; }
+.pasta-bottom-row { display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:46px; }
+.pasta-detail { font-size:12px;color:#d6eadf;line-height:1.4;min-width:0;flex:1;font-variant-numeric:tabular-nums;font-weight:700; }
+.pasta[data-heat="hot"] .pasta-detail { color:#ffad94; }
+.pasta[data-heat="good"] .pasta-detail { color:var(--p-good); }
+.pasta-next { min-height:48px;padding:12px 24px;border-radius:25px;background:var(--p-accent);color:#1d322b;font-size:14px;font-weight:900;flex-shrink:0;box-shadow:0 3px 0 #c5542d; }
+.pasta-next:disabled { opacity:.38;cursor:not-allowed;box-shadow:none; }
+.pasta-next:not(:disabled):active { transform:translateY(2px);box-shadow:0 1px 0 #c5542d; }
+.pasta[data-stage="recipe"] .pasta-bottom-row { justify-content:center; }
+.pasta[data-stage="recipe"] .pasta-detail { display:none; }
+.pasta[data-stage="recipe"] .pasta-next { min-width:200px; }
+.pasta[data-stage="boil"] .pasta-next:not(:disabled) { animation:pasta-ready 1s ease-in-out infinite; }
+@keyframes pasta-ready { 50% { box-shadow:0 3px 0 #c5542d,0 0 0 6px #ff8a5733; } }
+.pasta-key-help { font-size:9px;color:#86b09d;text-align:center;margin-top:8px;margin-bottom:0; }
+.pasta-result-overlay { top:auto;align-items:end;justify-items:center;background:none;backdrop-filter:none;padding:12px;max-height:100%; }
+@media (min-width:900px) and (min-height:501px) { .pasta-result-overlay { inset:60px 24px 0 auto;width:420px;align-items:center; } }
+.pasta-result { width:min(420px,100%);max-height:100%;overflow:auto;background:#fffaf0;border:0;border-radius:20px;color:#1f3a31;padding:18px 20px 14px; }
+.pasta-result h2 { font-size:22px;margin:6px 0 4px; }
+.pasta-score-line { display:flex;align-items:center;justify-content:center;gap:12px; }
+.pasta-result .result-value { color:#d9582f;font-size:46px; }
+.pasta-stars { font-size:24px;color:#f2a52b;letter-spacing:2px; }
+.pasta-stars em { font-style:normal;color:#e3dccb; }
+.pasta-result .pasta-critic { margin:2px 0 10px;font-size:13px;color:#4d6158;line-height:1.5; }
+.pasta-score-list { display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0; }
+.pasta-score-list span { background:#f0f0e6;padding:8px 2px;border-radius:9px;font-size:10px;color:#5d6f66; }
+.pasta-score-list b { display:block;font-size:19px;margin-top:3px;color:#1f3a31; }
+.pasta-result .pasta-result-detail { margin:6px 0 12px;font-size:11px; }
+.pasta-result .result-actions { flex-direction:row; }
+.pasta-result .result-actions > * { flex:1; }
+.pasta-result .primary { background:var(--p-accent);color:#1d322b;min-height:46px; }
+.pasta-result .secondary { background:#1f3a31;color:#fff;min-height:46px; }
+.pasta-result .text-link { margin-top:12px; }
+.pasta-error { padding:24px;text-align:center; }
+.pasta-error button { min-height:44px;background:#fff;color:#153b31;border-radius:8px;padding:10px 20px; }
+.pasta button:focus-visible { outline:3px solid #a6e2c2;outline-offset:3px; }
+@media (max-width:700px) {
+ .pasta-top { padding:10px 14px 8px; }.pasta-top h1 { font-size:20px; }.pasta-instruction { font-size:11px; }
+ .pasta-bottom { padding:10px 14px max(10px,env(safe-area-inset-bottom)); }
+ .pasta-recipes { gap:6px; }.pasta-recipes button { flex-direction:column;gap:5px;font-size:11px;min-height:62px;padding:7px 3px; }
+ .pasta-pop { font-size:30px; }.pasta-next { padding:12px 18px;font-size:13px; }
+ .pasta-steps span { display:none; }.pasta-steps li { padding:3px; }.pasta-steps li.active span { display:inline; }.pasta-steps li.active { padding-right:8px; }
+}
+@media (max-width:400px) { .pasta-top h1 { font-size:18px; }.pasta .controls { gap:5px; }.pasta .controls button { width:38px;height:38px; } }
+@media (max-height:650px) {
+ .pasta-top { padding-top:6px;padding-bottom:6px; }.pasta-instruction { display:none; }
+ .pasta-recipes button { min-height:46px;flex-direction:row;gap:5px; }.pasta-recipe-note { margin:6px auto; }
+ .pasta-key-help { display:none; }.pasta-intro { padding:10px 14px; }.pasta-intro h2 { font-size:19px;margin:2px 0 4px; }.pasta-intro p { margin-bottom:8px; }
+ .pasta-result { padding:12px 16px; }.pasta-result .result-value { font-size:36px; }.pasta-result .pasta-critic { margin-bottom:4px; }
+}
+@media (max-height:500px) and (orientation:landscape) {
+ .pasta { display:grid;grid-template-columns:230px 1fr;grid-template-rows:auto 1fr; }
+ .pasta-top { grid-column:1;grid-row:1;flex-direction:column;padding:10px 14px; }
+ .pasta-viewport { grid-column:2;grid-row:1 / 3; }
+ .pasta-bottom { grid-column:1;grid-row:2;border-top:0;overflow:auto;padding:6px 14px 10px; }
+ .pasta-recipes { grid-template-columns:1fr 1fr; }.pasta-recipes button { min-height:40px;flex-direction:row; }
+ .pasta-recipe-note,.pasta-key-help { display:none; }
+ .pasta-bottom-row { flex-wrap:wrap; }.pasta-next { width:100%;min-height:44px;padding:8px 14px; }
+ .pasta-intro { bottom:10px;padding:10px 14px; }.pasta-intro p { display:none; }.pasta-intro h2 { font-size:18px; }
+ .pasta-result-overlay { inset:0 0 0 auto;width:min(380px,50%);align-items:center; }.pasta-result { padding:10px 16px; }.pasta-result .result-value { font-size:32px; }.pasta-result .pasta-critic,.pasta-result .text-link { display:none; }.pasta-score-list b { font-size:15px; }
+}
+@media (prefers-reduced-motion:reduce) { .pasta-pop.show { animation-duration:.01s; }.pasta-intro,.intro-icon *,.pasta-next { animation:none !important; } }
