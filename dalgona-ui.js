@@ -1,4 +1,4 @@
-import { DalgonaGame, SHAPES, MELT_GOLD, PUFF_GOLD, PRESS_GOLD, MAX_CHIPS, outline } from './dalgona-engine.js';
+import { DalgonaGame, SHAPES, MELT_GOLD, PUFF_GOLD, PRESS_GOLD, MAX_CHIPS, SNAP, outline } from './dalgona-engine.js';
 import { DalgonaView } from './dalgona-view.js';
 
 const shareIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg>';
@@ -6,7 +6,7 @@ const STEPS = {
   melt:{ n:1, title:'설탕 녹이기', short:'녹이기', body:'국자를 꾹 눌러 연탄불에 올리고, 빙글빙글 저어 녹이세요. 황금빛이 되면 손을 떼요.', hint:'누른 채 빙글빙글' },
   soda:{ n:2, title:'소다 넣기', short:'부풀리기', body:'탭해서 소다를 톡! 빠르게 저어 부풀리고, 알맞게 부풀면 손을 떼요.', hint:'탭하고 빙글빙글' },
   press:{ n:3, title:'누르기', short:'누르기', body:'누르개를 아래로 끌어 납작하게 눌러요. 너무 얇으면 잘 깨지고, 두꺼우면 잘 안 긁혀요.', hint:'아래로 끌었다 놓기' },
-  carve:{ n:4, title:'모양 뽑기', short:'뽑기', body:'선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 그대로 선을 따라 살살 문지르세요. 빨리 긁으면 금이 가고, 금이 모양 안으로 들어가면 깨져요.', hint:'선 위를 누른 채 문지르기' },
+  carve:{ n:4, title:'모양 뽑기', short:'뽑기', body:'선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 그대로 선을 따라 살살 문지르세요. 빨리 긁으면 금이 가고, 금이 모양 안으로 들어가면 깨져요. 다 판 조각은 손가락으로 휙 밀어 치우고, 많이 판 바깥쪽은 톡 쳐서 부러뜨릴 수도 있어요.', hint:'선 위를 누른 채 문지르기' },
 };
 const HINTS = {
   pick:'어떤 모양에 도전할까요?',
@@ -92,7 +92,7 @@ export class DalgonaController {
       this.view.sfx.ensure(); this.last = [e.clientX, e.clientY]; this.startY = e.clientY;
       // a finger hides the needle tip, so on touch the needle sits a little above it
       this.lift = e.pointerType === 'touch' ? 34 : 0;
-      if (g.phase === 'carve') this.needleAt(e, true); else g.press(true);
+      if (g.phase === 'carve') { if (!this.grab(e)) this.needleAt(e, true); } else g.press(true);
     }, opt);
     c.addEventListener('pointermove', e => {
       if (e.pointerId !== this.pointer) return;
@@ -100,10 +100,13 @@ export class DalgonaController {
       const d = Math.hypot(e.clientX - this.last[0], e.clientY - this.last[1]); this.last = [e.clientX, e.clientY];
       if (g.phase === 'melt' || g.phase === 'soda') g.stir(d / scale());
       if (g.phase === 'press') g.pressTo((e.clientY - this.startY) / (c.clientHeight * .32));
-      if (g.phase === 'carve') this.needleAt(e, true);
+      if (g.phase === 'carve') { if (this.hand) this.drag(e); else this.needleAt(e, true); }
     }, opt);
     const up = e => {
       if (e && e.pointerId !== this.pointer) return; this.pointer = null;
+      // a hand that never swiped was a tap: snap that piece off
+      const h = this.hand; this.hand = null;
+      if (h && !h.flung) g.breakOff(h.s);
       if (g.phase === 'carve') g.needle(0, 0, false); else g.press(false);
     };
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) c.addEventListener(type, up, opt);
@@ -117,6 +120,24 @@ export class DalgonaController {
       if (e.code === 'Escape') { e.preventDefault(); if (g.phase === 'paused') g.resume(); else g.pause(); }
     }, opt);
     c.addEventListener('keyup', e => { if (e.code !== 'Space') return; e.preventDefault(); this.keyHold = false; if (g.phase !== 'carve') g.press(false); }, opt);
+  }
+  // Touching the outside (away from the groove) is the hand, not the needle:
+  // swipe a piece to fling it, tap it to snap it off.
+  grab(e) {
+    const g = this.g, c = g.carve, p = this.view.pick(e.clientX, e.clientY); if (!p || g.state !== 'play') return false;
+    const s = g.outerAt(p.x, p.y);
+    if (s < 0 || c.popped[s] || !(c.loose[s] || c.clearing != null || g.nearest(p.x, p.y).d >= SNAP)) return c.clearing != null;
+    this.hand = { s, x:p.x, y:p.y, t:performance.now(), sx:p.x, sy:p.y, vx:0, vy:0, flung:false };
+    g.needle(0, 0, false); this.shell.dataset.needle = 'hand';
+    return true;
+  }
+  drag(e) {
+    const g = this.g, h = this.hand, p = this.view.pick(e.clientX, e.clientY); if (!p) return;
+    const now = performance.now(), dt = Math.max(.008, (now - h.t) / 1000);
+    h.vx += ((p.x - h.x) / dt - h.vx) * .6; h.vy += ((p.y - h.y) / dt - h.vy) * .6; h.x = p.x; h.y = p.y; h.t = now;
+    if (!h.flung && Math.hypot(p.x - h.sx, p.y - h.sy) > .09) { h.flung = true; g.breakOff(h.s, h.vx, h.vy); }
+    // a sweeping finger takes every loose piece it passes over
+    if (h.flung) { const s = g.outerAt(p.x, p.y); if (s >= 0 && g.carve.loose[s] && !g.carve.popped[s]) g.breakOff(s, h.vx, h.vy); }
   }
   needleAt(e, down) { const p = this.view.pick(e.clientX, e.clientY - this.lift); if (p) this.g.needle(p.x, p.y, down); }
 
@@ -133,7 +154,11 @@ export class DalgonaController {
     if (e.type === 'touch') this.buzz(e.where === 'line' ? 8 : 20);
     if (e.type === 'shard') this.buzz(15);
     if (e.type === 'crack') { this.buzz(e.inward ? [40, 30, 40] : 25); this.pop(e.inward ? '쩍! 금이 갔어요' : '바깥쪽 금, 휴…', e.inward ? 'miss' : 'good'); this.shell.dataset.flash = ''; void this.shell.offsetWidth; this.shell.dataset.flash = e.inward ? 'bad' : 'soft'; }
-    if (e.type === 'shard') this.pop('톡!', 'small');
+    if (e.type === 'shard') this.pop(e.how === 'snap' ? '똑!' : e.how === 'chip' ? '앗, 같이 떨어졌어요' : e.vx || e.vy ? '휙!' : '톡!', e.how === 'chip' ? 'miss' : 'small');
+    if (e.type === 'loose' && !this.looseHint) { this.looseHint = true; this.pop('떨어졌어요! 휙 밀어 치워요', 'good'); }
+    if (e.type === 'stuck') { this.buzz(10); this.pop('아직 단단해요, 더 파요', 'small'); }
+    if (e.type === 'carved') { this.buzz([20, 40, 20]); this.pop('다 팠어요! 조각을 휙~', 'perfect'); }
+    if (e.type === 'phase' && e.phase === 'carve') this.looseHint = false;
     if (e.type === 'lick') this.pop('촉촉하게…', 'good');
     if (e.type === 'free') this.pop('성공!', 'perfect');
     if (e.type === 'snap') this.pop('깨졌어요!', 'miss');
@@ -181,8 +206,9 @@ export class DalgonaController {
       const left = g.shape.time - c.t;
       // what the needle is doing right now, so every touch answers at once
       const pct = `${Math.round(g.progressRatio() * 100)}%`;
-      this.set('dal-detail', 'text', g.state === 'intro' ? '' : c.tension > .7 ? '살살! 금이 가려고 해요' : !c.down ? (g.progressRatio() < .03 ? '빛나는 선 위를 눌러 보세요' : `선 위를 계속 문질러요 · ${pct}`) : c.where === 'inside' ? '안쪽은 긁으면 흠집이 나요!' : c.where === 'outside' ? '선 쪽으로 옮겨요' : c.wet > 0 ? `촉촉해서 덜 깨져요 · ${pct}` : left < 12 ? `서둘러요! · ${pct}` : `사각사각… ${pct}`);
-      this.shell.dataset.needle = c.down ? c.where || '' : '';
+      const loose = c.loose.filter((v, i) => v && !c.popped[i]).length;
+      this.set('dal-detail', 'text', g.state === 'intro' ? '' : c.clearing != null ? (loose ? `남은 조각을 휙 밀어 치워요 · ${loose}` : '깔끔해요!') : this.hand ? '휙 밀면 날아가요' : c.tension > .7 ? '살살! 금이 가려고 해요' : !c.down ? (g.progressRatio() < .03 ? '빛나는 선 위를 눌러 보세요' : loose ? `떨어진 조각은 휙 밀어 치워요 · ${pct}` : `선 위를 계속 문질러요 · ${pct}`) : c.where === 'inside' ? '안쪽은 긁으면 흠집이 나요!' : c.where === 'outside' ? '선 쪽으로 옮겨요' : c.wet > 0 ? `촉촉해서 덜 깨져요 · ${pct}` : left < 12 ? `서둘러요! · ${pct}` : `사각사각… ${pct}`);
+      this.shell.dataset.needle = this.hand ? 'hand' : c.down ? c.where || '' : '';
       this.set('dal-meter-fill', 'width', (g.progressRatio() * 100).toFixed(1) + '%');
     }
     if (phase === 'pick') this.$('dal-next').disabled = this.$('dal-quick').disabled = false;

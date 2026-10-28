@@ -20,6 +20,9 @@ export const SNAP = .12;          // a needle this close to the groove slides in
 export const SAFE_SPEED = .55;    // candy units per second a typical toffee tolerates; each shape sets its own
 export const SECTORS = 12;
 export const MAX_CHIPS = 3;
+export const CLEAR_TIME = 4;     // seconds to flick the last loose pieces away before they drop on their own
+export const BREAK_SAFE = .75;    // a groove this deep everywhere in a sector snaps off clean when tapped
+export const BREAK_MIN = .4;      // below this average depth the outside won't budge
 const N = 180;
 
 const TAU = Math.PI * 2;
@@ -73,7 +76,7 @@ export class DalgonaGame {
     this.make = { melt:0, lumps:0, onFire:false, stir:0, soda:false, puff:0, still:0, press:0, pressing:false, burnt:false, grades:{} };
     const o = outline(this.shape.id);
     this.path = o.points; this.radial = o.radial; this.sectors = o.points.map(p => sectorOf(p.a));
-    this.carve = { progress:new Float32Array(N), popped:new Array(SECTORS).fill(false), needle:null, down:false, where:null, tension:0, chips:0, scratch:0, cracks:[], licks:3, wet:0, t:0, brittle:1, rate:1, moved:0 };
+    this.carve = { progress:new Float32Array(N), popped:new Array(SECTORS).fill(false), loose:new Array(SECTORS).fill(false), clearing:null, needle:null, down:false, where:null, tension:0, chips:0, scratch:0, cracks:[], licks:3, wet:0, t:0, brittle:1, rate:1, moved:0 };
   }
   choose(id) { if (this.phase !== 'pick') return false; this.shape = SHAPES.find(s => s.id === id) || SHAPES[0]; this.reset(); return true; }
   start(mode = 'make') {
@@ -134,7 +137,7 @@ export class DalgonaGame {
     const c = this.carve;
     if (this.phase !== 'carve') return;
     if (down && this.state === 'intro') this.begin();
-    if (this.state !== 'play') { c.needle = null; c.down = false; return; }
+    if (this.state !== 'play' || c.clearing != null) { c.needle = null; c.down = false; return; }
     if (!down) { c.down = false; c.needle = null; c.where = null; return; }
     // close to the groove the tip slides into it, so a finger never has to be pixel-exact
     const near = this.nearest(x, y);
@@ -157,6 +160,36 @@ export class DalgonaGame {
     }
     return out;
   }
+  // the outer piece of candy under a point, or -1 inside the shape / off the candy
+  outerAt(x, y) {
+    const a = Math.atan2(y, x), r = Math.hypot(x, y);
+    return r > this.radial(a) + .02 && r < 1.08 ? sectorOf(a) : -1;
+  }
+  sectorDepth(s) {
+    const p = this.carve.progress; let lo = 1, sum = 0, n = 0, weak = -1;
+    for (let k = 0; k < this.path.length; k++) if (this.sectors[k] === s) { sum += p[k]; n++; if (weak < 0 || p[k] < lo) { lo = p[k]; weak = k; } }
+    return { lo, avg:n ? sum / n : 1, weak };
+  }
+  // Fingers can snap the outside off: a loose piece always comes away, a deep groove snaps clean,
+  // a half-dug one may take a chip of the shape with it, and a shallow one won't budge.
+  breakOff(s, vx = 0, vy = 0) {
+    const c = this.carve;
+    if (this.phase !== 'carve' || this.state !== 'play' || s < 0 || s >= SECTORS || c.popped[s]) return null;
+    let how = 'loose';
+    if (!c.loose[s]) {
+      const { lo, avg, weak } = this.sectorDepth(s);
+      if (avg < BREAK_MIN) { this.events.push({ type:'stuck', sector:s }); return 'stuck'; }
+      how = lo >= BREAK_SAFE || this.random() < (lo - .2) / (BREAK_SAFE - .2) ? 'snap' : 'chip';
+      if (how === 'chip') {
+        const p = this.path[weak], crack = { x:p.x, y:p.y, dir:p.a + Math.PI + (this.random() - .5) * .6, len:.12 + this.random() * .1, inward:true };
+        c.cracks.push(crack); c.chips++; this.events.push({ type:'crack', ...crack, chips:c.chips });
+      }
+      for (let k = 0; k < this.path.length; k++) if (this.sectors[k] === s) c.progress[k] = 1;
+    }
+    c.loose[s] = c.popped[s] = true;
+    this.events.push({ type:'shard', sector:s, vx, vy, how });
+    return how;
+  }
   lick() {
     const c = this.carve;
     if (this.phase !== 'carve' || this.state !== 'play' || c.licks <= 0 || c.wet > 0) return false;
@@ -170,6 +203,15 @@ export class DalgonaGame {
   }
   carveUpdate(dt) {
     const c = this.carve;
+    // every piece is loose: the clock stops and there's a moment to flick them away
+    if (c.clearing != null) {
+      c.clearing += dt;
+      if (c.clearing >= CLEAR_TIME || c.popped.every(Boolean)) {
+        for (let s = 0; s < SECTORS; s++) if (!c.popped[s]) { c.popped[s] = true; this.events.push({ type:'shard', sector:s, vx:0, vy:0, how:'drop' }); }
+        this.events.push({ type:'free' }); this.finish(true);
+      }
+      return;
+    }
     c.t += dt; c.wet = Math.max(0, c.wet - dt);
     const moved = c.moved; c.moved = 0;
     const brittle = c.brittle * (1 + c.t / 50) * (c.wet > 0 ? .4 : 1);
@@ -189,11 +231,13 @@ export class DalgonaGame {
     }
     c.tension = Math.max(0, c.tension - dt * .55);
     for (let s = 0; s < SECTORS; s++) {
-      if (c.popped[s]) continue;
+      if (c.loose[s]) continue;
       let done = true; for (let k = 0; k < this.path.length; k++) if (this.sectors[k] === s && c.progress[k] < 1) { done = false; break; }
-      if (done) { c.popped[s] = true; this.events.push({ type:'shard', sector:s }); }
+      // a cut-through piece comes loose and waits for a flick
+      if (done) { c.loose[s] = true; this.events.push({ type:'loose', sector:s }); }
     }
-    if (c.popped.every(Boolean)) { this.events.push({ type:'free' }); this.finish(true); return; }
+    if (c.chips >= MAX_CHIPS) { this.events.push({ type:'snap' }); this.finish(false, 'broken'); return; }
+    if (c.loose.every(Boolean)) { c.clearing = 0; c.down = false; c.needle = null; this.events.push({ type:'carved', left:c.popped.filter(v => !v).length }); return; }
     if (c.chips >= MAX_CHIPS) { this.events.push({ type:'snap' }); this.finish(false, 'broken'); return; }
     if (c.t >= this.shape.time) this.finish(false, 'timeout');
   }

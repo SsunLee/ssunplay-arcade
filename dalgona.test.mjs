@@ -118,3 +118,37 @@ test('a touch near the groove snaps onto it and answers at once', () => {
   assert.ok(g.carve.progress[22] > .3, 'progress ' + g.carve.progress[22]);
   g.needle(0, 0, false); g.needle(0, 0, true); assert.equal(g.carve.where, 'inside');
 });
+
+test('a cut-through piece waits loose until flicked, and the clock stops once all are loose', () => {
+  const g = new DalgonaGame(12); g.start('quick'); trace(g, g.shape.safe * .8, 4);
+  assert.ok(g.result.freed); assert.ok(g.events.some(e => e.type === 'carved'));
+  const h = new DalgonaGame(12); h.start('quick'); step(h, .5);
+  const pts = h.path; let k = 0; h.needle(pts[0].x, pts[0].y, true);
+  for (let i = 0; i < 60 * 120 && !h.carve.loose.some(Boolean); i++) { k = (k + 1) % pts.length; h.needle(pts[k].x, pts[k].y, true); h.update(1 / 60); }
+  const s = h.carve.loose.findIndex(Boolean); assert.ok(s >= 0); assert.equal(h.carve.popped[s], false, 'loose pieces stay put');
+  h.events.length = 0; assert.equal(h.breakOff(s, 2, 1), 'loose');
+  assert.ok(h.carve.popped[s]); assert.ok(h.events.some(e => e.type === 'shard' && e.vx === 2 && e.how === 'loose'));
+  assert.equal(h.breakOff(s), null, 'already gone');
+});
+
+test('tapping the outside snaps a deep sector clean, chips a half-dug one, and leaves a shallow one', () => {
+  const g = new DalgonaGame(13); g.start('quick'); step(g, .5); g.needle(.5, 0, true); g.update(1 / 60);
+  const c = g.carve, idx = s => g.path.map((p, k) => g.sectors[k] === s ? k : -1).filter(k => k >= 0);
+  const p0 = g.path[idx(0)[0]], r0 = Math.hypot(p0.x, p0.y);
+  assert.equal(g.outerAt(p0.x * (r0 + .1) / r0, p0.y * (r0 + .1) / r0), 0); assert.equal(g.outerAt(p0.x * .5, p0.y * .5), -1);
+  assert.equal(g.breakOff(0), 'stuck'); assert.equal(c.popped[0], false); assert.equal(c.chips, 0);
+  for (const k of idx(1)) c.progress[k] = .9;
+  assert.equal(g.breakOff(1), 'snap'); assert.equal(c.chips, 0); assert.ok(idx(1).every(k => c.progress[k] === 1));
+  for (const k of idx(2)) c.progress[k] = .5; for (const k of idx(3)) c.progress[k] = .5;
+  const outs = [g.breakOff(2), g.breakOff(3)]; for (let s = 4; s < 9; s++) { for (const k of idx(s)) c.progress[k] = .45; outs.push(g.breakOff(s)); }
+  assert.ok(outs.includes('chip'), outs.join()); assert.equal(c.chips, outs.filter(o => o === 'chip').length);
+});
+
+test('once every piece is loose the clock stops and leftovers drop on their own', () => {
+  const g = new DalgonaGame(14); g.start('quick'); step(g, .5); g.needle(.5, 0, true); g.update(1 / 60);
+  g.carve.progress.fill(1); g.update(1 / 60);
+  assert.equal(g.carve.clearing, 0); assert.ok(g.events.some(e => e.type === 'carved'));
+  const t = g.carve.t; g.breakOff(0, -3, 0); step(g, 1); assert.equal(g.carve.t, t); assert.equal(g.phase, 'carve');
+  step(g, 3.2); assert.equal(g.phase, 'result'); assert.ok(g.result.freed); assert.equal(g.result.time, Math.round(t));
+  assert.ok(g.events.filter(e => e.type === 'shard' && e.how === 'drop').length === 11);
+});

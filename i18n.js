@@ -90,7 +90,7 @@ const rows=[
  ["사각사각…","Scritch, scritch…","カリカリ…","沙沙沙…"],
  ["모드","Mode","モード","模式"],
  ["모양을 고른 뒤 바로 뽑기로 곧장 바늘을 들거나, 직접 만들기로 설탕부터 녹여 보세요. 직접 잘 만든 달고나일수록 덜 깨져요.","Pick a shape, then grab the needle right away with Quick carve, or start from melting sugar with Make it yourself. A well-made dalgona cracks less.","形を選んだら「すぐ型抜き」でいきなり針を持つか、「自分で作る」で砂糖を溶かすところから。上手に作ったダルゴナほど割れにくいよ。","選好圖案後，可以用「直接挑戰」馬上拿起針，或用「親手製作」從融糖開始。親手做得越好，椪糖越不容易碎。"],
- ["빛나는 선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 누른 채 선을 따라 여러 번 문질러 홈을 파세요. 긁는 곳이 금빛으로 빛나요. 한 구간이 다 파이면 바깥 조각이 톡 떨어집니다. 너무 빨리 긁거나 모양 안쪽을 긁으면 금 위험이 올라가고, 금이 모양 안으로 세 번 들어가면 깨져요.","Touch the glowing line and the needle snaps into the groove. Hold and rub along it several times to dig the groove; where you scratch glows gold. Once a section is cut through, the outer piece pops off. Scratching too fast or inside the shape raises the crack risk, and three cracks inside the shape break it.","光る線に指を置くと針が溝にピタッとはまるよ。押したまま線に沿って何度もこすって溝を掘ろう。こすった所は金色に光るよ。区間が掘れきると外側のかけらがポロッと取れる。速すぎたり形の内側をこすったりするとひびの危険が上がり、ひびが形の内側に3回入ると割れちゃう。","手指碰到發光的線，針就會卡進凹槽。按住沿線來回刮好幾次，把凹槽刮深；刮過的地方會發出金光。一段刮穿後，外側碎片就會啪地掉下。刮太快或刮到圖案內側，裂開風險就會升高，裂痕三次跑進圖案內就會碎。"],
+ ["빛나는 선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 누른 채 선을 따라 여러 번 문질러 홈을 파세요. 긁는 곳이 금빛으로 빛나요. 한 구간이 다 파이면 바깥 조각이 헐거워지니 손가락으로 휙 밀어 치우세요. 많이 판 바깥쪽은 톡 쳐서 부러뜨릴 수도 있지만, 덜 팠으면 모양까지 같이 떨어질 수 있어요. 너무 빨리 긁거나 모양 안쪽을 긁으면 금 위험이 올라가고, 금이 모양 안으로 세 번 들어가면 깨져요.","Touch the glowing line and the needle snaps into the groove. Hold and rub along it several times to dig the groove; where you scratch glows gold. Once a section is cut through, its outer piece comes loose: flick it away with your finger. You can also tap a well-dug outer part to snap it off, but if the groove is shallow it may take a chip of the shape with it. Scratching too fast or inside the shape raises the crack risk, and three cracks inside the shape break it.","光る線に指を置くと針が溝にピタッとはまるよ。押したまま線に沿って何度もこすって溝を掘ろう。こすった所は金色に光るよ。区間が掘れきると外側のかけらが外れるので、指でサッと払おう。よく掘った外側はトンと叩いて折れるけど、浅いと形まで一緒に欠けることも。速すぎたり形の内側をこすったりするとひびの危険が上がり、ひびが形の内側に3回入ると割れちゃう。","手指碰到發光的線，針就會卡進凹槽。按住沿線來回刮好幾次，把凹槽刮深；刮過的地方會發出金光。一段刮穿後，外側碎片會鬆脫，用手指一撥甩開。挖得夠深的外圈也能輕敲折斷，但挖太淺可能連圖案一起崩掉。刮太快或刮到圖案內側，裂開風險就會升高，裂痕三次跑進圖案內就會碎。"],
  ["키보드: Space를 길게 눌러 녹이기·젓기·누르기, L로 침 바르기, Q로 바로 뽑기, Esc로 일시 정지. 모양 뽑기는 마우스나 터치로 해 주세요.","Keyboard: hold Space to melt, stir and press, L to lick, Q for quick carve, Esc to pause. Carve the shape with a mouse or touch.","キーボード：Space長押しで溶かす・混ぜる・押す、Lでなめる、Qですぐ型抜き、Escで一時停止。型抜きはマウスかタッチでどうぞ。","鍵盤：長按 Space 融糖・攪拌・壓平，L 舔一舔，Q 直接挑戰，Esc 暫停。挑圖案請用滑鼠或觸控。"],
  ["두 화구 동시에","Two burners at once","2口コンロ同時進行","雙爐同時開火"],
  ["불 앞","Stove","コンロ","爐前"],
@@ -119,6 +119,17 @@ const rows=[
  ["탁탁 썰고, 두 화구를 오가며, 출렁 토스.","Chop, juggle two burners, toss loose.","トントン切って、2口コンロを行き来して、ふわっとトス。","咚咚切菜，雙爐來回跑，軟軟拋鍋。"],
  ["세 단계로 완성하는 나만의 한 접시.","Your own plate in three stages.","3段階で仕上げる自分だけの一皿。","三個階段完成你的專屬一盤。"],
  ["리듬 칼질 · 두 화구 멀티태스킹","Rhythm chopping · two-burner multitasking","リズム包丁・2口コンロのマルチタスク","節奏刀工 · 雙爐多工"],
+ ["다 판 조각은 손가락으로 휙 밀어 치우고, 많이 판 바깥쪽은 톡 쳐서 부러뜨릴 수도 있어요.","Flick cut-out pieces away with your finger, or tap a well-dug outer part to snap it off.","掘り終えたかけらは指でサッと払い、よく掘った外側はトンと叩いて折ることもできるよ。","挖好的碎片用手指一撥就飛走，挖得夠深的外圈也能輕敲折斷。"],
+ ["떨어졌어요! 휙 밀어 치워요","It's loose! Flick it away","外れた！サッと払って","鬆脫了！一撥甩開"],
+ ["아직 단단해요, 더 파요","Still solid, dig more","まだ硬い、もっと掘って","還很硬，再挖深一點"],
+ ["다 팠어요! 조각을 휙~","All cut! Flick the pieces~","掘り終わり！かけらをサッと～","挖完了！把碎片甩開～"],
+ ["앗, 같이 떨어졌어요","Oops, it took a chip","あっ、一緒に欠けた","啊，連著崩掉了"],
+ ["똑!","Snap!","パキッ！","啪！"],
+ ["휙!","Whoosh!","ヒュッ！","咻！"],
+ ["남은 조각을 휙 밀어 치워요","Flick away the last pieces","残りのかけらを払って","把剩下的碎片甩開"],
+ ["깔끔해요!","Spotless!","きれい！","乾淨俐落！"],
+ ["휙 밀면 날아가요","Swipe and it flies","サッと払うと飛ぶよ","一撥就飛走"],
+ ["떨어진 조각은 휙 밀어 치워요","Flick loose pieces away","外れたかけらは払ってね","鬆脫的碎片一撥甩開"],
 ];
 if(ES.length!==rows.length)console.error('i18n: Spanish has '+ES.length+' rows, expected '+rows.length);
 export const ROW_COUNT=rows.length;

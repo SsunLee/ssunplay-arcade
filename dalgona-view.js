@@ -5,7 +5,7 @@ import { Sfx, canvasTexture } from './pasta-view.js';
 
 const TAU = Math.PI * 2;
 const lerp = (a, b, k) => a + (b - a) * k;
-const clamp01 = v => Math.max(0, Math.min(1, v));
+const clamp01 = v => Math.max(0, Math.min(1, v)), clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = k => 1 - Math.pow(1 - clamp01(k), 3);
 function seeded(seed) { let s = seed >>> 0 || 1; return () => ((s = Math.imul(s ^ s >>> 15, 2246822507) + 0x9e3779b9 >>> 0) / 4294967296); }
 
@@ -37,6 +37,7 @@ class CandySfx extends Sfx {
   clank() { this.tone(820, .3, { type:'square', vol:.07, to:610 }); this.tone(1240, .22, { type:'triangle', vol:.06 }); this.burst({ freq:3000, q:1.2, vol:.25, dur:.06 }); }
   thunk() { this.tone(140, .14, { to:60, vol:.35 }); this.burst({ freq:900, type:'lowpass', vol:.2, dur:.1 }); }
   lick() { this.burst({ freq:700, sweep:1600, type:'lowpass', q:3, vol:.25, dur:.22 }); }
+  whoosh() { this.burst({ freq:500, sweep:2400, type:'bandpass', q:.8, vol:.4, dur:.22 }); this.tone(260, .16, { type:'triangle', vol:.05, to:110 }); }
   tick(on) { this.burst({ freq:on ? 5200 : 2400, q:3, vol:on ? .22 : .12, dur:.025 }); }
   sprinkle() { for (let i = 0; i < 6; i++) this.burst({ freq:6000, type:'highpass', q:.6, vol:.06, dur:.03, delay:i * .04 }); }
   win() { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, i === 4 ? .6 : .14, { type:'triangle', vol:.12, delay:i * .09 })); }
@@ -318,17 +319,25 @@ export class DalgonaView {
     }
     if (e.type === 'scratch') { if (this.scratches.length < 120 && Math.random() < .3) { const a = Math.random() * TAU; this.scratches.push({ x:e.x, y:e.y, dx:Math.cos(a), dy:Math.sin(a) }); this.dirty = true; } this.scrapeLevel = .4; }
     if (e.type === 'crack') { this.dirty = true; this.sfx.crack(); if (e.inward) this.sfx.chip(); if (!this.reduced) this.shake = e.inward ? .05 : .025; this.burst(this.candyPoint(e.x, e.y), 0xd9922b, e.inward ? 10 : 5, { speed:.9, size:.014, spread:.7 }); }
-    if (e.type === 'shard') this.popShard(e.sector);
+    if (e.type === 'shard') this.popShard(e.sector, e.vx, e.vy, e.how);
+    if (e.type === 'loose') { const m = this.shards[e.sector]; if (m) { m.userData.loose = true; m.userData.wob = .5; } this.sfx.chip(); this.burst(this.candyPoint(Math.cos(m?.userData.mid || 0) * .75, Math.sin(m?.userData.mid || 0) * .75), 0xe0a040, 4, { speed:.6, size:.012, spread:.6 }); }
+    if (e.type === 'stuck') { const m = this.shards[e.sector]; if (m) m.userData.wob = .35; this.sfx.thunk(); }
     if (e.type === 'lick') { this.sfx.lick(); }
     if (e.type === 'free') { this.freeT = 0; this.sfx.win(); for (const col of [0xffd36a, 0xffffff, 0xff8a57]) this.burst(this.candyPoint(0, 0).add(new T.Vector3(0, .3, 0)), col, 14, { speed:2.2, size:.02, spread:1.2 }); }
     if (e.type === 'snap') { this.snapT = 0; this.dirty = true; this.sfx.snap(); setTimeout(() => !this.dead && this.sfx.lose(), 400); if (!this.reduced) this.shake = .1; }
     if (e.type === 'finish' && !e.freed && g.result?.reason === 'timeout') this.sfx.lose();
   }
   candyPoint(x, y) { const R = this.candyR || 1, th = this.candyTh || .08; return new T.Vector3(x * R, TRAY_TOP + th, -y * R); }
-  popShard(s) {
+  // a flicked piece flies off the way the finger went; a dropped one just tips off the edge
+  popShard(s, vx = 0, vy = 0, how = 'drop') {
     const m = this.shards[s]; if (!m || m.parent !== this.candy) return;
-    this.scene.attach(m); const a = m.userData.mid;
-    this.flying.push({ m, v:new T.Vector3(Math.cos(a) * (.7 + Math.random() * .4), 1.3 + Math.random() * .5, -Math.sin(a) * (.7 + Math.random() * .4)), w:new T.Vector3((Math.random() - .5) * 8, (Math.random() - .5) * 4, (Math.random() - .5) * 8), rest:false });
+    this.scene.attach(m); const a = m.userData.mid, sp = Math.hypot(vx, vy);
+    if (sp > .3) {
+      const dx = vx / sp, dz = -vy / sp, out = clamp(2.6 + sp * 1.1, 3, 7.5);
+      this.flying.push({ m, v:new T.Vector3(dx * out + Math.cos(a) * .4, 1.4 + Math.random() * .8, dz * out - Math.sin(a) * .4), w:new T.Vector3((Math.random() - .5) * 22, (Math.random() - .5) * 14, (Math.random() - .5) * 22), rest:false, flung:true });
+      this.sfx.whoosh(); if (!this.reduced) this.shake = Math.max(this.shake || 0, .015);
+    } else this.flying.push({ m, v:new T.Vector3(Math.cos(a) * (.7 + Math.random() * .4), 1.3 + Math.random() * .5, -Math.sin(a) * (.7 + Math.random() * .4)), w:new T.Vector3((Math.random() - .5) * 8, (Math.random() - .5) * 4, (Math.random() - .5) * 8), rest:false });
+    if (how === 'snap' || how === 'chip') this.sfx.crack();
     this.sfx.tone(700 + s * 40, .08, { type:'triangle', vol:.12, to:1400 }); this.sfx.burst({ freq:3800, q:2, vol:.2, dur:.04 });
     this.burst(this.candyPoint(Math.cos(a) * .7, Math.sin(a) * .7), 0xe0a040, 6, { speed:1, size:.015, spread:.8 });
   }
@@ -472,6 +481,13 @@ export class DalgonaView {
       this.tipMat.color.setHex(c.where === 'line' ? 0xffd36a : c.where === 'inside' ? 0xff5a4a : 0xffffff);
       this.tip.scale.setScalar(1 + (this.scrapeLevel || 0) * .5 + Math.sin(this.time * 12) * .06);
     }
+    for (const sh of this.shards) {
+      if (sh.parent !== this.candy) continue;
+      const u = sh.userData; u.wob = Math.max(0, (u.wob || 0) - dt * 1.6);
+      const twitch = u.wob * Math.sin(this.time * 38 + u.mid * 5);
+      sh.position.z = (u.loose ? .35 + Math.sin(this.time * 3 + u.mid * 4) * .08 : 0) + Math.abs(twitch) * .5;
+      sh.rotation.z = twitch * .015;
+    }
     // groove guide pulses until the first stroke, then stays faint
     const showGuide = phase === 'carve' && this.stamped && this.stampT == null;
     this.guide.visible = showGuide;
@@ -496,10 +512,11 @@ export class DalgonaView {
     else this.inner.rotation.y = 0;
     if (this.dirty && (!this.lastDraw || this.time - this.lastDraw > 1 / 20 || phase !== 'carve')) { this.drawTop(); this.lastDraw = this.time; }
     // shards tumble onto the tray and the counter
+    this.flying = this.flying.filter(f => { if (!f.flung || f.m.position.lengthSq() < 60 && f.m.position.y > -3) return true; this.scene.remove(f.m); f.m.geometry.dispose(); return false; });
     for (const f of this.flying) {
       if (f.rest) continue;
       f.v.y -= 6 * dt; f.m.position.addScaledVector(f.v, dt); f.m.rotation.x += f.w.x * dt; f.m.rotation.y += f.w.y * dt; f.m.rotation.z += f.w.z * dt;
-      const floor = Math.hypot(f.m.position.x, f.m.position.z) < 1.4 ? TRAY_TOP : .0;
+      const floor = f.flung ? -9 : Math.hypot(f.m.position.x, f.m.position.z) < 1.4 ? TRAY_TOP : .0;
       if (f.m.position.y < floor + .02) { f.m.position.y = floor + .02; if (Math.abs(f.v.y) < .6) { f.rest = true; f.m.rotation.x = -Math.PI / 2 + (Math.random() - .5) * .3; f.m.rotation.y = (Math.random() - .5) * .3; } else { f.v.y *= -.3; f.v.x *= .6; f.v.z *= .6; this.sfx.tone(1500 + Math.random() * 800, .03, { type:'triangle', vol:.04 }); } }
     }
   }

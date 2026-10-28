@@ -57,10 +57,24 @@ try{
  await p.locator('#game[data-phase="carve"]').waitFor({timeout:3000});await p.waitForTimeout(1400);await p.screenshot({path:out+'/quick-intro.png'});
  const qp=await p.evaluate(()=>{const c=document.querySelector('#game').__dalgona;return c.g.path.map(q=>{const r=Math.hypot(q.x,q.y),f=(r+.07)/r;return c.view.project(q.x*f,q.y*f)})});
  for(let i=0;i<40&&await data('state')!=='play';i++){await p.mouse.move(qp[0].x,qp[0].y);await p.mouse.down();await p.waitForTimeout(80);if(await data('state')==='play')break;await p.mouse.up();await p.waitForTimeout(120)}
+ // the tap that dismisses the intro card doesn't reach the candy, so touch again
+ await p.mouse.up();await p.mouse.down();await p.waitForTimeout(50);
  assert.equal(await p.evaluate(()=>document.querySelector('#game').__dalgona.g.carve.where),'line');
  for(let k=0;k<qp.length;k++){await p.mouse.move(qp[k].x,qp[k].y);await p.waitForTimeout(16);if(k===40)await p.screenshot({path:out+'/quick-touch.png'})}
  await p.mouse.up();const qprog=Number(await data('progress'));assert.ok(qprog>=25,'quick progress '+qprog);
  record('quick mode skips making; an off-line finger snaps to the groove ('+qprog+'% in one lap)');
+ // hands: a well-dug outside snaps off with a tap, a cut-through piece flies off with a swipe
+ const outer=async s=>p.evaluate(s=>{const c=document.querySelector('#game').__dalgona,a=(s+.5)/12*Math.PI*2,r=c.g.radial(a)+.18;return c.view.project(Math.cos(a)*r,Math.sin(a)*r)},s);
+ const dig=async(s,v)=>p.evaluate(([s,v])=>{const g=document.querySelector('#game').__dalgona.g;g.path.forEach((_,k)=>{if(g.sectors[k]===s)g.carve.progress[k]=v})},[s,v]);
+ const popped=async s=>p.evaluate(s=>document.querySelector('#game').__dalgona.g.carve.popped[s],s);
+ let tgt=-1;for(let s=0;s<12;s++)if(!await popped(s)&&!await p.evaluate(s=>document.querySelector('#game').__dalgona.g.carve.loose[s],s)){tgt=s;break}
+ assert.ok(tgt>=0);await dig(tgt,.9);let o=await outer(tgt);await p.mouse.click(o.x,o.y);await p.waitForTimeout(100);
+ assert.ok(await popped(tgt),'tap snaps a deep sector');assert.equal(await data('chips'),'0');
+ let fl=-1;for(let s=0;s<12;s++)if(!await popped(s)){fl=s;break}
+ await dig(fl,1);await p.waitForFunction(s=>document.querySelector('#game').__dalgona.g.carve.loose[s],fl,{timeout:5000});assert.equal(await popped(fl),false,'loose pieces wait for the hand');
+ o=await outer(fl);await p.mouse.move(o.x,o.y);await p.mouse.down();await p.mouse.move(o.x+90,o.y-40,{steps:4});await p.waitForTimeout(60);await p.mouse.up();await p.waitForTimeout(250);await p.screenshot({path:out+'/flick.png'});
+ assert.ok(await popped(fl),'swipe flings the loose piece');assert.ok(await p.evaluate(()=>document.querySelector('#game').__dalgona.view.flying.some(f=>f.flung)));
+ record('tap snaps a deep outside clean; a swipe flings a loose piece');
  await p.goto(base+'/');await p.locator('#preview-dalgona[data-renderer]').waitFor({state:'attached'});assert.equal(await p.locator('.game-card').count(),5);await p.waitForTimeout(600);await p.screenshot({path:out+'/home.png',fullPage:true});record('home lists five games');
  const untranslated=[];for(const g of ['dalgona','pasta','beer','curling','drive','']){await p.goto(base+(g?'/game/'+g+'/':'/'));await p.waitForTimeout(300);for(const lang of ['en','ja','zh-Hant','es']){await p.locator('#language-select').selectOption(lang);await p.waitForTimeout(100);const raw=await p.locator('body').evaluate(korean);if(raw.length)untranslated.push({game:g||'home',lang,raw});assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))}await p.locator('#language-select').selectOption('ko')}
  for(const [width,height] of [[320,568],[844,390],[1280,800]]){await p.setViewportSize({width,height});await p.goto(base+'/game/dalgona/');await p.locator('#game[data-phase="pick"]').waitFor();const nb=await p.locator('#dal-next').boundingBox();assert.ok(nb.y>=0&&nb.y+nb.height<=height+1);assert.ok(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await p.waitForTimeout(300);await p.screenshot({path:out+`/layout-${width}x${height}.png`});record('dalgona fits '+width+'x'+height)}
