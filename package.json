@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "npm run build && node server.mjs",
     "build": "node build.mjs",
-    "test": "node --test engine.test.mjs performance.test.mjs beer.test.mjs beer-share.test.mjs pasta.test.mjs",
-    "check": "node --check app.js && node --check engine.js && node --check models.js && node --check stage.js && node --check beer.js && node --check pasta-engine.js && node --check pasta-ui.js && node --check pasta-view.js && node --check i18n.js",
+    "test": "node --test engine.test.mjs performance.test.mjs beer.test.mjs beer-share.test.mjs pasta.test.mjs dalgona.test.mjs i18n.test.mjs",
+    "check": "node --check app.js && node --check engine.js && node --check models.js && node --check stage.js && node --check beer.js && node --check pasta-engine.js && node --check pasta-ui.js && node --check pasta-view.js && node --check i18n.js && node --check i18n-es.js && node --check dalgona-engine.js && node --check dalgona-view.js && node --check dalgona-ui.js",
     "test:browser": "node browser-check.mjs",
     "test:overflow": "node browser-overflow-check.mjs",
-    "test:pasta": "node browser-pasta-check.mjs"
+    "test:pasta": "node browser-pasta-check.mjs",
+    "test:dalgona": "node browser-dalgona-check.mjs"
   },
   "dependencies": {
     "three": "0.186.1"

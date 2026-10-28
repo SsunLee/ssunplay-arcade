@@ -327,6 +327,13 @@ export class BeerView {
     );
     this.stream.castShadow = false;
     this.streamBase = this.stream.geometry.attributes.position.array.slice();
+    // where a tilted glass catches the stream, beer runs down the inner wall
+    this.runnel = F.mesh(
+      new T.CylinderGeometry(0.03, 0.03, 1, 10, 1),
+      this.stream.material,
+      root,
+    );
+    this.runnel.castShadow = false;
     const napkin = F.cube(
       root,
       [0.62, 0.022, 0.7],
@@ -388,9 +395,32 @@ export class BeerView {
       this.bubbles.setMatrixAt(i, this.dummy.matrix);
     }
     this.bubbles.instanceMatrix.needsUpdate = true;
-    const end = 0.12 + Math.cos(angle) * Math.min(1.77, Math.max(0.1, top)),
+    // glass-local (x, y) on the tilt plane to world space
+    const sin = Math.sin(angle),
+      cos = Math.cos(angle),
+      px = this.glass.position.x,
+      toWorld = (x, y, v) => v.set(px + x * cos - y * sin, 0.12 + x * sin + y * cos, 0.15),
+      level = Math.min(1.77, Math.max(0.1, top)),
+      // the stream falls from the rim centre; it meets the surface or the inner wall (radius .371 + .093y, less its own width)
+      toSurface = (1.77 - level) * cos,
+      toWall = 0.5056 / (Math.abs(sin) + 0.093 * cos),
+      drop = Math.min(toSurface, toWall),
       start = new T.Vector3(-0.55, 2.54, 0.15),
-      finish = new T.Vector3(-0.55, end, 0.15);
+      finish = new T.Vector3(-0.55, 0.12 + 1.77 * cos - drop, 0.15);
+    const side = -Math.sign(sin) || -1,
+      hitY = 1.77 - drop * cos,
+      wallX = (y) => side * (0.341 + 0.093 * clamp(y, 0, 1.72)),
+      // the surface plane is level in world space: y = level - tan * x
+      runY = clamp((level + Math.tan(angle) * 0.341 * -side) / (1 + Math.tan(angle) * 0.093 * side), 0.09, hitY);
+    this.runnel.visible = g.flow > 0.002 && toWall < toSurface && hitY - runY > 0.02;
+    if (this.runnel.visible) {
+      const a = toWorld(wallX(hitY), hitY, new T.Vector3()),
+        b = toWorld(wallX(runY), runY, new T.Vector3());
+      dir.copy(a).sub(b);
+      this.runnel.position.copy(a).add(b).multiplyScalar(0.5);
+      this.runnel.scale.set(0.8 + g.flow * 1.6, dir.length(), 0.45 + g.flow);
+      this.runnel.quaternion.setFromUnitVectors(up, dir.normalize());
+    }
     dir.copy(start).sub(finish);
     this.stream.visible = g.flow > 0.002;
     this.stream.position.copy(start).add(finish).multiplyScalar(0.5);

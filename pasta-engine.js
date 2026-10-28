@@ -19,6 +19,24 @@ export const INGREDIENTS = {
   basil:   { name:'바질', length:1.1, width:.16, speed:.5 },
 };
 
+// Every plate is cooked for someone: a sauce they ordered and one thing they care about.
+export const CUSTOMERS = [
+  { id:'worker', name:'퇴근한 회사원', line:'오늘 하루 고생했어요. 면은 꼬들꼬들하게 부탁해요!', sauce:'tomato', want:'firm', ask:'꼬들꼬들한 면' },
+  { id:'grandma', name:'옆집 할머니', line:'칼질 소리가 듣기 좋더라. 고르게 썰어 줘요.', sauce:'cream', want:'even', ask:'고른 칼질' },
+  { id:'kid', name:'동네 꼬마', line:'팬 휙휙 하는 거 보여 주세요!', sauce:'rose', want:'show', ask:'토스 묘기' },
+  { id:'critic', name:'깐깐한 미식가', line:'불향이 살아 있어야 합니다. 플람베, 할 수 있죠?', sauce:'pesto', want:'flambe', ask:'불향 플람베' },
+  { id:'student', name:'배고픈 대학생', line:'칼질 묘기 보여 주시면 친구들 데려올게요!', sauce:'tomato', want:'combo', ask:'8연속 PERFECT' },
+];
+const WANTS = {
+  firm:r => r.doneness >= 70 && r.doneness <= 76,
+  even:r => r.slices > 0 && r.perfects / r.slices >= .8,
+  show:r => r.tossPerfects === 3,
+  flambe:r => r.flambe && r.burn < 1,
+  combo:r => r.maxCombo >= 8,
+};
+export const FEVER_COMBO = 5;
+export const FLAMBE_AT = 8.8;
+
 export const PHASES = ['chop','saute','boil','toss'];
 export const SAUTE_TIME = 13;
 export const ALDENTE = [.70,.82];
@@ -47,11 +65,14 @@ export class PastaGame {
     this.stateTime = 0;
     this.events = [];
     this.result = null;
+    // the LCG's first draw barely moves with nearby seeds, so take its low digits
+    this.customer = CUSTOMERS[Math.floor((this.random() * 9973) % 1 * CUSTOMERS.length)];
+    this.recipe = SAUCES.find(s => s.id === this.customer.sauce);
     this.resetStations();
   }
   resetStations() {
-    this.chop = { index:0, feed:0, lastCut:0, wait:0, knife:1, slices:[], combo:0, maxCombo:0, perfects:0, last:null };
-    this.saute = { t:0, flame:0, temp:.12, holding:false, inZone:0, burn:0, cook:0, sauce:false };
+    this.chop = { index:0, feed:0, lastCut:0, wait:0, knife:1, slices:[], combo:0, maxCombo:0, perfects:0, last:null, fever:false };
+    this.saute = { t:0, flame:0, temp:.12, holding:false, inZone:0, burn:0, cook:0, sauce:false, cue:false, flambe:null };
     this.boil = { t:0, done:0, foam:.18, overflow:0, gust:0, stirs:0 };
     const bands = [[.46,.6],[.7,.84],[.3,.44]];
     for (let i = bands.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [bands[i], bands[j]] = [bands[j], bands[i]]; }
@@ -93,7 +114,10 @@ export class PastaGame {
     c.combo = g.grade === 'perfect' ? c.combo + 1 : 0;
     c.maxCombo = Math.max(c.maxCombo, c.combo);
     if (g.grade === 'perfect') c.perfects++;
-    this.events.push({ type:'slice', slice, combo:c.combo, ing:c.index, feed:c.feed });
+    // a run of perfect cuts lights the knife up and quickens the feed
+    const fever = c.combo >= FEVER_COMBO;
+    if (fever !== c.fever) { c.fever = fever; this.events.push({ type:'fever', on:fever }); }
+    this.events.push({ type:'slice', slice, combo:c.combo, ing:c.index, feed:c.feed, fever });
     if (ing.length - c.lastCut < ing.width * 1.05) this.nextIngredient();
     return slice;
   }
@@ -118,7 +142,7 @@ export class PastaGame {
     if (on && this.state === 'intro') this.begin();
     this.saute.holding = this.saute.pressed && this.state === 'play';
   }
-  heatScore() { const s = this.saute; return Math.round(clamp(s.inZone / SAUTE_TIME * 108 - s.burn * 12, 0, 100)); }
+  heatScore() { const s = this.saute; return Math.round(clamp(s.inZone / SAUTE_TIME * 108 + (s.flambe ? 10 : 0) - s.burn * 12, 0, 100)); }
 
   // ── 3. boil: tap to knock the foam down, drain in the al dente window ──
   stir() {
@@ -161,7 +185,7 @@ export class PastaGame {
     const off = h < lo ? lo - h : h > hi ? h - hi : 0;
     const r = { height:h, band:[lo, hi], score:Math.round(clamp(100 - off * 380, 0, 100)), grade:off === 0 ? 'perfect' : off < .1 ? 'good' : h > hi ? 'high' : 'low' };
     t.results.push(r); t.flight = 1.05; t.power = 0;
-    this.events.push({ type:'toss', ...r, n:t.results.length });
+    this.events.push({ type:'toss', ...r, n:t.results.length, bravo:t.results.length === 3 && t.results.every(x => x.grade === 'perfect') });
     return r;
   }
   tossScore() { const r = this.toss.results; return r.length ? Math.round(r.reduce((a, b) => a + b.score, 0) / 3) : 0; }
@@ -183,7 +207,7 @@ export class PastaGame {
     if (this.phase === 'chop') {
       const c = this.chop, ing = this.ingredient;
       if (c.wait > 0) { c.wait -= dt; return; }
-      c.feed += ing.speed * dt;
+      c.feed += ing.speed * (c.fever ? 1.12 : 1) * dt;
       if (c.feed - c.lastCut > ing.width * 2.1 || c.feed > ing.length + ing.width * .5) this.addSlice(Math.min(c.feed, ing.length) - c.lastCut, true);
     }
     if (this.phase === 'saute') {
@@ -196,6 +220,9 @@ export class PastaGame {
       else if (s.temp > top) { s.burn += (s.temp - top) * dt * 4; s.cook += dt * .8; }
       else s.cook += dt * .3;
       if (!s.sauce && s.t >= SAUTE_TIME * .45) { s.sauce = true; this.events.push({ type:'sauce' }); }
+      // the wine goes in: only a hot pan under a held flame catches it
+      if (!s.cue && s.t >= FLAMBE_AT - 1.6) { s.cue = true; this.events.push({ type:'flambeCue' }); }
+      if (s.flambe == null && s.t >= FLAMBE_AT) { s.flambe = s.holding && s.temp >= z.center - z.half * .25; this.events.push({ type:'flambe', ok:s.flambe }); }
       if (s.t >= SAUTE_TIME) { s.holding = false; this.complete(.9); }
     }
     if (this.phase === 'boil') {
@@ -214,13 +241,20 @@ export class PastaGame {
   }
   finish() {
     const chopScore = this.chopScore(), heatScore = this.heatScore(), noodleScore = this.noodleScore(), tossScore = this.tossScore();
-    const value = Math.round(chopScore * .3 + heatScore * .25 + noodleScore * .3 + tossScore * .15);
-    this.result = {
-      game:'pasta', value, metric:value, recipe:this.recipe.id, chopScore, heatScore, noodleScore, tossScore,
+    const cooked = Math.round(chopScore * .3 + heatScore * .25 + noodleScore * .3 + tossScore * .15);
+    const r = {
+      game:'pasta', recipe:this.recipe.id, chopScore, heatScore, noodleScore, tossScore,
       slices:this.chop.slices.length, perfects:this.chop.perfects, maxCombo:this.chop.maxCombo,
       doneness:Math.round(this.boil.done * 100), noodle:this.noodleState(), overflow:this.boil.overflow,
       burn:Math.round(this.saute.burn * 10) / 10, high:this.toss.results.filter(r => r.grade === 'high').length,
+      tossPerfects:this.toss.results.filter(r => r.grade === 'perfect').length, flambe:!!this.saute.flambe,
+      customer:this.customer.id,
     };
+    // the customer's wish is a bonus on top of the cooking, a wrong sauce costs it
+    r.ordered = this.recipe.id === this.customer.sauce; r.wish = WANTS[this.customer.want](r);
+    r.value = r.metric = Math.min(100, cooked + (!r.ordered ? -5 : r.wish ? 6 : 0));
+    r.tip = r.ordered ? Math.round(r.value / 10) * 500 + (r.wish ? 3000 : 0) : 0;
+    this.result = r;
     this.phase = 'result'; this.state = 'done';
     this.events.push({ type:'finish' });
     return true;

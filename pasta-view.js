@@ -25,7 +25,7 @@ const STATIONS = {
 const HEAPS = [[-2.05,-.82],[-2.05,0],[-2.05,.82]];
 
 // ── procedural textures ──
-function canvasTexture(w, h, draw, { repeat, color = true } = {}) {
+export function canvasTexture(w, h, draw, { repeat, color = true } = {}) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   draw(c.getContext('2d'), w, h);
   const t = new T.CanvasTexture(c);
@@ -168,7 +168,7 @@ function tangleGeometry(seed, R, h, count = 26) {
 const NOODLE = { raw:0xe0b45a, firm:0xe8c470, aldente:0xf0d185, soft:0xf3dca3, mushy:0xf5e5bd };
 
 // ── synthesized kitchen sounds ──
-class Sfx {
+export class Sfx {
   constructor(enabled) { this.enabled = enabled; this.ctx = null; this.loops = {}; }
   ensure() {
     if (!this.enabled()) { this.silence(); return null; }
@@ -204,6 +204,10 @@ class Sfx {
   splash() { this.burst({ freq:1400, sweep:400, type:'lowpass', q:.5, vol:.4, dur:.45 }); }
   land() { this.burst({ freq:3500, type:'highpass', q:.4, vol:.28, dur:.35 }); this.tone(120, .1, { to:70, vol:.2 }); }
   pop() { this.tone(500 + Math.random() * 500, .05, { to:1300, vol:.035 }); }
+  fever() { [523, 659, 784, 1047].forEach((f, i) => this.tone(f, .16, { type:'triangle', vol:.11, delay:i * .06 })); }
+  flambe() { this.burst({ freq:300, sweep:1800, type:'lowpass', q:.6, vol:.55, dur:.9 }); this.tone(90, .5, { to:45, vol:.3 }); }
+  fizzle() { this.burst({ freq:2200, sweep:700, type:'highpass', q:.5, vol:.2, dur:.4 }); }
+  fanfare() { [523, 659, 784, 659, 1047].forEach((f, i) => this.tone(f, i === 4 ? .5 : .14, { type:'triangle', vol:.12, delay:i * .1 })); }
   loop(name, type, freq, q) {
     const c = this.ensure(); if (!c) return null;
     if (!this.loops[name]) {
@@ -261,6 +265,8 @@ export class PastaView {
     key.shadow.bias = -.0004; key.shadow.normalBias = .02; key.shadow.radius = 4;
     this.scene.add(key, key.target);
     const rim = new T.DirectionalLight(0xffd2a8, .7); rim.position.set(6, 5, -8); this.scene.add(rim);
+    // flashes when the pan goes up in a flambé
+    this.flare = new T.PointLight(0xff8a2a, 0, 9, 1.6); this.flare.position.set(PAN.x, PAN.y + 1.4, PAN.z); this.scene.add(this.flare);
   }
   materials() {
     const m = this.mat = {};
@@ -480,7 +486,7 @@ export class PastaView {
   }
   resetBoard() {
     for (const s of this.slices) this.scene.remove(s.pivot);
-    this.slices = []; this.remainKey = ''; this.knifeT = 1;
+    this.slices = []; this.remainKey = ''; this.knifeT = 1; this.fever = false;
     for (const p of this.panPieces) p.mesh.parent?.remove(p.mesh);
     this.panPieces = []; this.sauceDisc.visible = false; this.panNest.visible = false;
   }
@@ -543,6 +549,17 @@ export class PastaView {
     }
     if (e.type === 'ingredientDone') { for (const s of this.slices) if (s.ing === e.index && s.sweep < 0) s.sweep = 0; }
     if (e.type === 'sauce') { this.sauceDisc.visible = true; this.sauceT = 0; this.sfx.splash(); }
+    if (e.type === 'fever') { this.fever = e.on; if (e.on) { this.sfx.fever(); this.burst(new T.Vector3(KNIFE_X, BOARD_TOP + 1, 0), 0xffd36a, 18, { speed:2.2, size:.03, spread:1 }); } }
+    if (e.type === 'slice' && e.fever && e.slice.grade === 'perfect') this.burst(new T.Vector3(KNIFE_X, BOARD_TOP + .3, 0), 0xffe08a, 8, { speed:2, size:.022, spread:.8 });
+    if (e.type === 'flambeCue') { this.sfx.splash(); this.burst(new T.Vector3(PAN.x - .3, PAN_FLOOR + 1.1, PAN.z), 0x7a1f2b, 16, { speed:.6, size:.035, spread:.3 }); }
+    if (e.type === 'flambe') {
+      if (e.ok) {
+        this.sfx.flambe(); this.flareT = 0; if (!this.reduced) this.shake = .2;
+        for (let i = 0; i < 26; i++) this.steam(new T.Vector3(PAN.x + (Math.random() - .5) * 1.2, PAN_FLOOR + .2 + Math.random() * .4, PAN.z + (Math.random() - .5) * 1.2), { color:i % 3 ? 0xff9a3a : 0xffd36a, size:.9 + Math.random() * .8, rise:2.6 + Math.random(), life:.8, opacity:.85 });
+        this.burst(new T.Vector3(PAN.x, PAN_FLOOR + .5, PAN.z), 0xffc25a, 24, { speed:3, size:.03, spread:1 });
+      } else { this.sfx.fizzle(); this.steam(new T.Vector3(PAN.x, PAN_FLOOR + .3, PAN.z), { size:1, rise:.8, opacity:.3 }); }
+    }
+    if (e.type === 'toss' && e.bravo) setTimeout(() => { if (this.dead) return; this.sfx.fanfare(); for (const col of [0xffd36a, 0x8fe0a9, 0xff8a57, 0xffffff]) this.burst(new T.Vector3(PAN.x, PAN_FLOOR + 2, PAN.z), col, 14, { speed:3.4, size:.04, spread:1.6 }); }, 650);
     if (e.type === 'stir') { this.stirT = 0; this.sfx.burst({ freq:900, sweep:300, q:.7, vol:.2, dur:.25 }); }
     if (e.type === 'overflow') { this.sfx.splash(); this.burst(new T.Vector3(POT.x, WATER + .2, POT.z), 0xf6fbff, 22, { speed:2.2, size:.05, spread:1 }); if (!this.reduced) this.shake = .15; }
     if (e.type === 'drain') { this.drainT = 0; this.sfx.splash(); }
@@ -617,6 +634,8 @@ export class PastaView {
     const yawTarget = f.yaw + (phase === 'result' ? Math.sin(this.time * .25) * .45 : 0);
     this.camYaw = lerp(this.camYaw, yawTarget, k);
     this.shake = Math.max(0, (this.shake || 0) - dt * .8);
+    this.mat.blade.emissive.setHex(0xffb437); this.mat.blade.emissiveIntensity = lerp(this.mat.blade.emissiveIntensity, this.fever && phase === 'chop' ? .55 + Math.sin(this.time * 14) * .15 : 0, 1 - Math.exp(-dt * 8));
+    if (this.flareT != null) { this.flareT += dt; this.flare.intensity = Math.max(0, 1 - this.flareT / 1.1) * 60; if (this.flareT > 1.1) this.flareT = null; }
     if (phase === 'recipe' || phase === 'result') this.dish.rotation.y += dt * (phase === 'recipe' ? .25 : .08);
     this.updateBoard(dt, phase);
     this.updateStove(dt, phase);
@@ -707,9 +726,11 @@ export class PastaView {
       const soften = this.sticksDrop < 0 ? 0 : clamp01(tDrop / 2.4), sink = this.sticksDrop < 0 ? -1 : ease(tDrop / .35);
       const mtx = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler();
       this.stickSeeds.forEach((sd, i) => {
-        const lean = sd.lean + soften * (1.15 + sd.lean * 2), baseY = sink < 0 ? 1.4 + Math.sin(this.time * 2) * .03 : lerp(1.4, .12, sink);
+        // softening strands sink into the water and rest against the rim instead of poking through the wall
+        const len = 1 - soften * .62, reach = (.84 - sd.r) / (2.1 * len);
+        const lean = Math.min(sd.lean + soften * (1.15 + sd.lean * 2), reach < 1 ? Math.asin(reach) : 1.5), baseY = sink < 0 ? 1.4 + Math.sin(this.time * 2) * .03 : lerp(1.4, .12, sink);
         e.set(Math.sin(sd.a) * lean, 0, -Math.cos(sd.a) * lean); q.setFromEuler(e);
-        mtx.compose(new T.Vector3(Math.cos(sd.a) * sd.r, baseY, Math.sin(sd.a) * sd.r), q, new T.Vector3(1, 1 - soften * .25, 1));
+        mtx.compose(new T.Vector3(Math.cos(sd.a) * sd.r, baseY, Math.sin(sd.a) * sd.r), q, new T.Vector3(1, len, 1));
         this.sticks.setMatrixAt(i, mtx);
       });
       this.sticks.instanceMatrix.needsUpdate = true;

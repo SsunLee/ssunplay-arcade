@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PastaGame, SAUCES, INGREDIENTS, ALDENTE, doneness, sauteZone, grade } from './pasta-engine.js';
+import { PastaGame, SAUCES, CUSTOMERS, INGREDIENTS, ALDENTE, FLAMBE_AT, FEVER_COMBO, doneness, sauteZone, grade } from './pasta-engine.js';
 
 const step = (g, s) => { for (let i = 0; i < Math.round(s * 60); i++) g.update(1 / 60); };
 const begin = g => { step(g, .5); g.begin(); };
@@ -117,7 +117,7 @@ test('pause freezes every station', () => {
 });
 
 for (const sauce of SAUCES) test(sauce.id + ' cooks a complete, top-scoring plate', () => {
-  const g = new PastaGame(9); g.choose(sauce.id); g.start();
+  const g = new PastaGame(9); g.customer = CUSTOMERS.find(c => c.sauce === sauce.id); g.choose(sauce.id); g.start();
   chopPerfectly(g); step(g, 1.2);
   sauteWell(g); step(g, 1);
   boilTo(g, .76); step(g, 1.2);
@@ -125,4 +125,40 @@ for (const sauce of SAUCES) test(sauce.id + ' cooks a complete, top-scoring plat
   assert.equal(g.result.recipe, sauce.id);
   assert.deepEqual([...new Set(g.chop.slices.map(s => s.kind))].sort(), [...sauce.ingredients].sort());
   assert.ok(g.result.value >= 95, JSON.stringify(g.result));
+});
+
+test('each customer arrives with their sauce already chosen', () => {
+  for (let seed = 1; seed < 40; seed++) { const g = new PastaGame(seed); assert.equal(g.recipe.id, g.customer.sauce); }
+  assert.equal(new Set(Array.from({ length:40 }, (_, i) => new PastaGame(i + 1).customer.id)).size, CUSTOMERS.length);
+});
+
+test('a perfect streak starts the fever and a miss ends it', () => {
+  const g = new PastaGame(2); g.start(); begin(g);
+  let feverOn = false;
+  for (let guard = 0; guard < 4000 && g.chop.perfects < FEVER_COMBO; guard++) {
+    const c = g.chop; if (c.wait <= 0 && c.feed - c.lastCut >= g.ingredient.width - 1e-3) g.cut(); g.update(1 / 120);
+  }
+  feverOn = g.events.some(e => e.type === 'fever' && e.on); assert.ok(feverOn); assert.ok(g.chop.fever);
+  step(g, 3); assert.equal(g.chop.fever, false);
+});
+
+test('flambé catches only on a hot, held pan and adds to the heat score', () => {
+  const hot = new PastaGame(5); hot.start(); hot.enter('saute'); begin(hot);
+  while (hot.saute.t < FLAMBE_AT + .1) { const z = sauteZone(hot.saute.t + .9); hot.hold(hot.saute.t > FLAMBE_AT - 1.4 || hot.saute.temp < z.center); hot.update(1 / 60); }
+  assert.equal(hot.saute.flambe, true);
+  const cold = new PastaGame(5); cold.start(); cold.enter('saute'); begin(cold); cold.hold(false);
+  step(cold, FLAMBE_AT + .2); assert.equal(cold.saute.flambe, false);
+  assert.ok(cold.events.some(e => e.type === 'flambe' && !e.ok));
+});
+
+test('meeting the wish earns a bonus and a tip, the wrong sauce costs both', () => {
+  const cook = sauce => {
+    const g = new PastaGame(9); g.customer = CUSTOMERS.find(c => c.want === 'even'); g.choose(sauce); g.start();
+    chopPerfectly(g); step(g, 1.2); sauteWell(g); step(g, 1); boilTo(g, .76); step(g, 1.2); tossPerfect(g); toResult(g);
+    return g.result;
+  };
+  const right = cook('cream'), wrong = cook('tomato');
+  assert.ok(right.ordered && right.wish); assert.ok(right.tip >= 3000);
+  assert.equal(wrong.ordered, false); assert.equal(wrong.tip, 0);
+  assert.ok(right.value > wrong.value, JSON.stringify([right, wrong]));
 });
