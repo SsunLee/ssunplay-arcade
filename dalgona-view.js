@@ -473,6 +473,9 @@ export class DalgonaView {
       if (!c.down) at.y += .12; else at.y += Math.abs(Math.sin(this.time * 40)) * (this.scrapeLevel || 0) * .02;
       // a fresh touch puts the needle there at once; only the hover eases
       if (c.down && !this.wasDown) N.position.copy(at); else N.position.lerp(at, 1 - Math.exp(-dt * 30));
+      // with a touch offset the needle leans back toward the finger, so the finger holds its head
+      const lean = this.lift ? .62 : .32, k = 1 - Math.exp(-dt * 10);
+      N.rotation.x = lerp(N.rotation.x, lean, k); N.rotation.z = lerp(N.rotation.z, this.lift ? -.08 : -.28, k);
     }
     this.wasDown = c.down;
     this.tip.visible = N.visible && c.down && !!c.needle;

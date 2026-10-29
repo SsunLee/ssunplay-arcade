@@ -130,6 +130,7 @@ const rows=[
  ["깔끔해요!","Spotless!","きれい！","乾淨俐落！"],
  ["휙 밀면 날아가요","Swipe and it flies","サッと払うと飛ぶよ","一撥就飛走"],
  ["떨어진 조각은 휙 밀어 치워요","Flick loose pieces away","外れたかけらは払ってね","鬆脫的碎片一撥甩開"],
+ ["바늘 끝은 손가락보다 조금 위에 있어서 손가락에 가리지 않아요.","The needle tip sits a little above your finger, so your finger never hides it.","針先は指より少し上にあるから、指で隠れないよ。","針尖在手指稍上方，不會被手指擋住。"],
 ];
 if(ES.length!==rows.length)console.error('i18n: Spanish has '+ES.length+' rows, expected '+rows.length);
 export const ROW_COUNT=rows.length;

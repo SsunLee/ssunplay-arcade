@@ -6,7 +6,7 @@ const STEPS = {
   melt:{ n:1, title:'설탕 녹이기', short:'녹이기', body:'국자를 꾹 눌러 연탄불에 올리고, 빙글빙글 저어 녹이세요. 황금빛이 되면 손을 떼요.', hint:'누른 채 빙글빙글' },
   soda:{ n:2, title:'소다 넣기', short:'부풀리기', body:'탭해서 소다를 톡! 빠르게 저어 부풀리고, 알맞게 부풀면 손을 떼요.', hint:'탭하고 빙글빙글' },
   press:{ n:3, title:'누르기', short:'누르기', body:'누르개를 아래로 끌어 납작하게 눌러요. 너무 얇으면 잘 깨지고, 두꺼우면 잘 안 긁혀요.', hint:'아래로 끌었다 놓기' },
-  carve:{ n:4, title:'모양 뽑기', short:'뽑기', body:'선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 그대로 선을 따라 살살 문지르세요. 빨리 긁으면 금이 가고, 금이 모양 안으로 들어가면 깨져요. 다 판 조각은 손가락으로 휙 밀어 치우고, 많이 판 바깥쪽은 톡 쳐서 부러뜨릴 수도 있어요.', hint:'선 위를 누른 채 문지르기' },
+  carve:{ n:4, title:'모양 뽑기', short:'뽑기', body:'바늘 끝은 손가락보다 조금 위에 있어서 손가락에 가리지 않아요. 선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 그대로 선을 따라 살살 문지르세요. 빨리 긁으면 금이 가고, 금이 모양 안으로 들어가면 깨져요. 다 판 조각은 손가락으로 휙 밀어 치우고, 많이 판 바깥쪽은 톡 쳐서 부러뜨릴 수도 있어요.', hint:'선 위를 누른 채 문지르기' },
 };
 const HINTS = {
   pick:'어떤 모양에 도전할까요?',
@@ -90,8 +90,8 @@ export class DalgonaController {
       if (e.button !== 0 || this.modal.open || this.pointer != null) return;
       e.preventDefault(); this.pointer = e.pointerId; c.setPointerCapture(e.pointerId); c.focus({ preventScroll:true });
       this.view.sfx.ensure(); this.last = [e.clientX, e.clientY]; this.startY = e.clientY;
-      // a finger hides the needle tip, so on touch the needle sits a little above it
-      this.lift = e.pointerType === 'touch' ? 34 : 0;
+      // a finger hides the needle tip, so on touch the tip sits well above it and the finger holds the far end
+      this.lift = e.pointerType === 'touch' ? Math.round(Math.max(56, Math.min(84, c.clientHeight * .14))) : 0; this.view.lift = this.lift;
       if (g.phase === 'carve') { if (!this.grab(e)) this.needleAt(e, true); } else g.press(true);
     }, opt);
     c.addEventListener('pointermove', e => {
@@ -124,9 +124,10 @@ export class DalgonaController {
   // Touching the outside (away from the groove) is the hand, not the needle:
   // swipe a piece to fling it, tap it to snap it off.
   grab(e) {
-    const g = this.g, c = g.carve, p = this.view.pick(e.clientX, e.clientY); if (!p || g.state !== 'play') return false;
+    const g = this.g, c = g.carve, p = this.view.pick(e.clientX, e.clientY), tip = this.view.pick(e.clientX, e.clientY - this.lift); if (!p || g.state !== 'play') return false;
+    // the finger is on a piece, but if the needle tip above it lands on the groove the needle wins
     const s = g.outerAt(p.x, p.y);
-    if (s < 0 || c.popped[s] || !(c.loose[s] || c.clearing != null || g.nearest(p.x, p.y).d >= SNAP)) return c.clearing != null;
+    if (s < 0 || c.popped[s] || !(c.clearing != null || !tip || g.nearest(tip.x, tip.y).d >= SNAP)) return c.clearing != null;
     this.hand = { s, x:p.x, y:p.y, t:performance.now(), sx:p.x, sy:p.y, vx:0, vy:0, flung:false };
     g.needle(0, 0, false); this.shell.dataset.needle = 'hand';
     return true;
