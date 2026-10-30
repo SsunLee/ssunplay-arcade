@@ -361,8 +361,8 @@ export class GameView {
       Math.min(1, dt * (sideTarget ? 1.6 : 3)),
     );
     if (ready) {
-      V.set(c.x - 9 * scale, 4.4 * scale + 0.6, 2.4 * scale);
-      LOOK.set(c.x + 16 + 4 * carScale, g.road.height(c.x + 12) - 1.5, 0);
+      V.set(c.x - 5.6 * scale, 2.7 * scale + 0.5, 1.3 * scale);
+      LOOK.set(c.x + 12 + 3 * carScale, g.road.height(c.x + 10) - 0.6, 0);
     } else if (falling) {
       V.set(
         Math.max(g.road.edge + 10, c.x - 4),
@@ -371,8 +371,8 @@ export class GameView {
       );
       LOOK.set(c.x, c.y, 0);
     } else {
-      V.set(c.x - 6.5 * scale, c.y + 2.6 * scale + 0.4, 1.6 * scale);
-      LOOK.set(c.x + Math.min(10, 2 + speed * 0.6) + 6, c.y - 0.3, 0);
+      V.set(c.x - 4.8 * scale, c.y + 2.0 * scale + 0.4, 1.1 * scale);
+      LOOK.set(c.x + Math.min(10, 2 + speed * 0.6) + 6, c.y + 0.2, 0);
       const near = Math.abs(g.gap) < 1.5 ? 1 : 0;
       V.lerp(
         new T.Vector3(
