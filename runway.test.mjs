@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, MAX_CROSS, SINK_GRADES, KT, FT, GRADES, FAILURES,
-  HOLD, HOLD_LABELS, holdStick, holdLabel, releaseThrottle,
+  HOLD, HOLD_LABELS, holdStick, holdLabel, releaseThrottle, LIVERIES, DEFAULT_LIVERY, LIVERY_KEY, getLivery,
   landingGrade, scoreLanding, scoreTakeoff, totalScore, papiLights, windComponents, formatWind, glideslopeDots, localizerDots,
 } from "./runway-engine.js";
 
@@ -421,4 +421,31 @@ test("on approach the hold button overrides the auto-throttle and hands back the
   g.setInput(0, 0, -1);
   run(g, 1 / 120);
   assert.equal(g.thrustBack, null);
+});
+
+test("liveries: eight fictional schemes with unique ids and valid colours, falling back to the classic", () => {
+  assert.equal(LIVERIES.length, 8);
+  const ids = LIVERIES.map((l) => l.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(new Set(LIVERIES.map((l) => l.name)).size, ids.length);
+  const hex = /^#[0-9a-f]{6}$/i;
+  for (const l of LIVERIES) {
+    assert.match(l.id, /^[a-z]+$/);
+    assert.ok(l.name && l.tagline && l.title, l.id);
+    assert.ok(["swirl", "stripes", "sweep", "slant", "wing", "band", "waves", "sun"].includes(l.tail), l.id);
+    for (const key of ["body", "belly", "tail", "accent", "rudder", "engine", "band", "winglet", "title"]) assert.match(l.colors[key], hex, `${l.id}.${key}`);
+    for (const [key, v] of Object.entries(l.colors)) if (v !== null) assert.match(v, hex, `${l.id}.${key}`);
+  }
+  // the stripe tail needs all five bands
+  const s = getLivery("saekdong");
+  for (const key of ["accent", "accent2", "accent3", "accent4", "accent5"]) assert.match(s.colors[key], hex);
+  assert.ok(ids.includes(DEFAULT_LIVERY));
+  assert.equal(getLivery("skyblue").id, "skyblue");
+  for (const bad of [null, undefined, "", "korean-air", "SKYBLUE", "__proto__"]) assert.equal(getLivery(bad).id, DEFAULT_LIVERY);
+  assert.equal(typeof LIVERY_KEY, "string");
+});
+
+test("liveries carry no real airline names", () => {
+  const banned = /korean|asiana|jeju|jin ?air|t'?way|air ?busan|air ?seoul|eastar|대한항공|아시아나|제주항공|진에어|티웨이|에어부산|에어서울|이스타/i;
+  for (const l of LIVERIES) for (const text of [l.id, l.name, l.title, l.tagline]) assert.doesNotMatch(text, banned);
 });

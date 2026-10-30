@@ -439,7 +439,7 @@ function share(boast = false) {
       : a.kind === "pasta"
       ? `${a.g.recipe.name} 파스타 완성! ${r.value}점\n칼질 ${r.chopScore} · 불 조절 ${r.heatScore} · 면 익힘 ${r.noodleScore} · 토스 ${r.tossScore}\nPERFECT ${r.perfects}/${r.slices} · COMBO ${r.maxCombo}`
       : a.kind === "runway"
-      ? runwayShare(r)
+      ? runwayShare(r, a.controller.livery)
       : a.kind === "dalgona"
       ? `달고나 ${a.g.shape.name} 뽑기 ${r.freed ? "성공" : "실패"}! ${r.value}점
 온전함 ${r.integrity} · 금 ${r.cracks} · ${r.time}초`
@@ -605,12 +605,12 @@ function mountDalgona() {
   translatePage();
 }
 
-function runwayShare(r) {
-  const ld = r.landing, to = r.takeoff;
-  if (!ld) return `쑨에어 버터 랜딩 — 이륙 ${to?.ok ? to.value + "점" : "실패"}! 김포 14R에서 도전해 보세요.`;
-  if (ld.grade === "goaround") return "쑨에어 버터 랜딩 — 고 어라운드! 다음엔 꼭 내려앉을게요.";
+function runwayShare(r, livery) {
+  const ld = r.landing, to = r.takeoff, plane = `\n✈ ${livery.name}`;
+  if (!ld) return `쑨에어 버터 랜딩 — 이륙 ${to?.ok ? to.value + "점" : "실패"}! 김포 14R에서 도전해 보세요.${plane}`;
+  if (ld.grade === "goaround") return `쑨에어 버터 랜딩 — 고 어라운드! 다음엔 꼭 내려앉을게요.${plane}`;
   const grade = { butter: "버터 랜딩!", good: "좋은 착륙", firm: "단단한 착륙", hard: "하드 랜딩", crash: "크래시!" }[ld.grade];
-  return `쑨에어 버터 랜딩 ${r.value}점 · ${grade}\n접지 강하율 ${ld.fpm}fpm · 중심선 오차 ${Math.abs(ld.centerline).toFixed(1)}m · 접지 위치 ${ld.distance >= 0 ? "+" : ""}${ld.distance}m`;
+  return `쑨에어 버터 랜딩 ${r.value}점 · ${grade}\n접지 강하율 ${ld.fpm}fpm · 중심선 오차 ${Math.abs(ld.centerline).toFixed(1)}m · 접지 위치 ${ld.distance >= 0 ? "+" : ""}${ld.distance}m${plane}`;
 }
 
 function mountRunway(stage = "takeoff") {

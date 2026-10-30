@@ -1,6 +1,6 @@
 import * as T from "three";
 import { Factory, noiseTexture } from "./models.js";
-import { RWY, DEG, rng, clamp } from "./runway-engine.js";
+import { RWY, DEG, rng, clamp, getLivery } from "./runway-engine.js";
 // World frame matches the engine: x along runway 14R, y up, z to the right of the centreline.
 const V = new T.Vector3(), LOOK = new T.Vector3(), L = RWY.length, W = RWY.width, Q = new T.Quaternion();
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -60,23 +60,195 @@ function controlSurface(F, parent, a, b, chord, thick, mat, vertical = false) {
   return pivot;
 }
 
-/** Twin-engine single-aisle jet in a fictional SSUN AIR livery. Origin at the main wheels, nose +x. */
-export function airlinerModel(F) {
+// The fin texture is drawn in fin metres: x from -21.6 (trailing tip) to -12.6 (leading root), y from 0 to 6.6 up.
+const FIN = { x0: -21.6, w: 9, h: 6.6 };
+// rudder hinge in fin metres, bottom to top, and the chord trailing behind it
+const RUDDER = { x0: -18.25, y0: 0.3, x1: -20.35, y1: 6.3, chord: 1.3 };
+const wave = (c, base, amp, phase, x0 = -22, x1 = -12) => {
+  for (let x = x0; x <= x1 + 0.01; x += 0.25) c.lineTo(x, base + Math.sin(x * 1.4 + phase) * amp);
+};
+
+/** Paints a livery's tail pattern over the whole fin rectangle; the fin shape crops it. */
+function paintFin(c, w, h, lv) {
+  const k = lv.colors;
+  c.setTransform(w / FIN.w, 0, 0, -h / FIN.h, (-FIN.x0 * w) / FIN.w, h);
+  c.fillStyle = k.tail;
+  c.fillRect(-22, -1, 10, 9);
+  c.lineCap = "round";
+  if (lv.tail === "swirl") {
+    // a red spiral inside a blue ring
+    const cx = -17.8, cy = 2.9, r = 1.15;
+    c.strokeStyle = k.accent2;
+    c.lineWidth = 0.2;
+    c.beginPath();
+    c.arc(cx, cy, r, 0, Math.PI * 2);
+    c.stroke();
+    c.strokeStyle = k.accent;
+    c.lineWidth = 0.24;
+    c.beginPath();
+    for (let i = 0; i <= 64; i++) {
+      const t = i / 64, a = t * Math.PI * 3.4, rr = 0.08 + t * (r - 0.36);
+      c.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    c.stroke();
+  } else if (lv.tail === "stripes") {
+    const bands = [k.accent, k.accent2, k.accent3, k.accent4, k.accent5];
+    bands.forEach((col, i) => {
+      c.fillStyle = col;
+      c.fillRect(-22, 6.6 - (i + 1) * 0.86, 10, 0.62);
+    });
+  } else if (lv.tail === "sweep") {
+    const g = c.createLinearGradient(-19, 0.4, -15, 6.2);
+    g.addColorStop(0, k.tail);
+    g.addColorStop(0.55, k.accent);
+    g.addColorStop(1, k.tail);
+    c.fillStyle = g;
+    c.fillRect(-22, -1, 10, 9);
+    c.strokeStyle = k.accent2;
+    c.lineWidth = 0.14;
+    c.beginPath();
+    c.moveTo(-14.4, 0.2);
+    c.quadraticCurveTo(-17.6, 2.4, -20.6, 6.4);
+    c.stroke();
+  } else if (lv.tail === "slant") {
+    c.fillStyle = k.accent;
+    c.beginPath();
+    c.moveTo(-12, -1);
+    c.lineTo(-22, -1);
+    c.lineTo(-22, 2.8);
+    c.closePath();
+    c.fill();
+    c.fillStyle = k.accent2;
+    c.beginPath();
+    c.arc(-17.6, 3.6, 0.5, 0, Math.PI * 2);
+    c.fill();
+  } else if (lv.tail === "wing") {
+    // two abstract wing petals rising from the fin root
+    for (const [col, tip, bend] of [[k.accent, [-20.2, 6.0], 1.6], [k.accent2, [-18.6, 6.4], 0.9]]) {
+      c.fillStyle = col;
+      c.beginPath();
+      c.moveTo(-16.4, 1.0);
+      c.bezierCurveTo(-16.4 - bend, 2.4, tip[0] + 0.8, tip[1] - 1.6, ...tip);
+      c.bezierCurveTo(tip[0] + 1.4, tip[1] - 0.8, -15.6 + bend * 0.2, 2.6, -16.4, 1.0);
+      c.fill();
+    }
+  } else if (lv.tail === "band") {
+    // a white stripe parallel to the leading edge
+    c.fillStyle = k.accent;
+    c.beginPath();
+    c.moveTo(-14.0, -0.5);
+    c.lineTo(-14.75, -0.5);
+    c.lineTo(-21.75, 7.1);
+    c.lineTo(-21.0, 7.1);
+    c.closePath();
+    c.fill();
+  } else if (lv.tail === "waves") {
+    for (const [col, base, amp, ph] of [[k.accent, 2.5, 0.28, 0], [k.accent2, 1.2, 0.22, 1.7]]) {
+      c.fillStyle = col;
+      c.beginPath();
+      c.moveTo(-22, -1);
+      wave(c, base, amp, ph);
+      c.lineTo(-12, -1);
+      c.closePath();
+      c.fill();
+    }
+    c.strokeStyle = "#ffffff";
+    c.lineWidth = 0.12;
+    for (const [base, ph] of [[3.4, 0.6], [4.3, 2.2]]) {
+      c.beginPath();
+      wave(c, base, 0.2, ph);
+      c.stroke();
+    }
+  }
+  c.setTransform(1, 0, 0, 1, 0, 0);
+}
+/** The rudder box's side faces map u along the chord (0 = trailing edge) and v along the hinge: copy that strip of the fin. */
+function paintRudder(c, w, h, fin) {
+  const fw = fin.width, fh = fin.height;
+  for (let r = 0; r < h; r++) {
+    const v = 1 - (r + 0.5) / h, y = lerp(RUDDER.y0, RUDDER.y1, v), xt = lerp(RUDDER.x0, RUDDER.x1, v) - RUDDER.chord;
+    c.drawImage(fin, ((xt - FIN.x0) / FIN.w) * fw, (1 - y / FIN.h) * fh, (RUDDER.chord / FIN.w) * fw, 1, 0, r, w, 1);
+  }
+}
+function paintTitle(c, w, h, lv) {
+  c.clearRect(0, 0, w, h);
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.fillStyle = lv.colors.title;
+  c.font = "900 92px 'Space Grotesk', 'Arial Black', sans-serif";
+  if (lv.id === "ssun") {
+    c.fillText("SSUN AIR", w / 2 - 70, h / 2 + 4);
+    c.fillStyle = lv.colors.accent2;
+    c.font = "800 58px sans-serif";
+    c.fillText("쑨에어", w / 2 + 330, h / 2 + 6);
+  } else c.fillText(lv.title, w / 2, h / 2 + 4, w * 0.94);
+}
+function paintEmblem(c, w, lv) {
+  c.clearRect(0, 0, w, w);
+  if (lv.tail !== "sun") return;
+  c.fillStyle = lv.colors.accent;
+  c.beginPath();
+  c.arc(w / 2, w / 2, w * 0.4, 0, Math.PI * 2);
+  c.fill();
+  c.fillStyle = lv.colors.tail;
+  c.font = "900 150px 'Space Grotesk', 'Arial Black', sans-serif";
+  c.textAlign = "center";
+  c.textBaseline = "middle";
+  c.fillText("S", w / 2, w / 2 + 10);
+}
+
+/** Recolours an airliner in place: livery materials and the painted textures are owned by each plane. */
+export function applyLivery(plane, lv) {
+  const u = plane.userData, p = u.paint, k = lv.colors, metal = !!lv.metal;
+  for (const key of ["body", "belly", "cheat", "stripe", "engine", "band", "winglet"]) if (k[key]) p[key].color.set(k[key]);
+  for (const m of u.cheat) m.visible = !!k.cheat;
+  for (const m of u.stripe) m.visible = !!k.stripe;
+  for (const m of [p.fin, p.rudder, p.engine, p.winglet, p.cheat]) {
+    m.metalness = metal ? 0.55 : 0.08;
+    m.roughness = metal ? 0.3 : 0.48;
+  }
+  const t = u.textures;
+  paintFin(t.fin.image.getContext("2d"), t.fin.image.width, t.fin.image.height, lv);
+  paintRudder(t.rudder.image.getContext("2d"), t.rudder.image.width, t.rudder.image.height, t.fin.image);
+  paintTitle(t.title.image.getContext("2d"), t.title.image.width, t.title.image.height, lv);
+  paintEmblem(t.emblem.image.getContext("2d"), t.emblem.image.width, lv);
+  for (const tex of Object.values(t)) tex.needsUpdate = true;
+  for (const m of u.emblem) m.visible = lv.tail === "sun";
+  u.livery = lv.id;
+}
+
+/** Twin-engine single-aisle jet in one of the fictional liveries. Origin at the main wheels, nose +x. */
+export function airlinerModel(F, livery = getLivery()) {
   const plane = new T.Group(), body = new T.Group();
   plane.add(body);
   // longer gear legs lift the airframe so the tail clears the runway up to the 13° tailstrike limit
   const lift = 0.8;
   body.position.y = lift;
   const white = F.mat(0xf6f7f4, 0.45, 0.1), grey = F.mat(0xb9bfc2, 0.5, 0.35), dark = F.mat(0x22282d, 0.4, 0.2),
-    green = F.mat(0x2f6b52, 0.5, 0.05), yellow = F.mat(0xf6d24a, 0.5, 0.05), glass = F.mat(0x18232c, 0.15, 0.6);
+    glass = F.mat(0x18232c, 0.15, 0.6);
   // wings a shade darker than the fuselage, with metal leading edges and bright moving surfaces
   const wingMat = F.mat(0xdfe5e9, 0.5, 0.15), edgeMat = F.mat(0x7d878e, 0.35, 0.55),
     flapMat = F.mat(0xa9b4bb, 0.5, 0.3), spoilerMat = F.mat(0x8c979e, 0.5, 0.3), moveMat = F.mat(0xf2b632, 0.45, 0.05);
-  for (const m of [flapMat, spoilerMat, moveMat]) m.userData.edge = dark;
+  // livery paint is per plane (not from the shared factory cache) so it can be recoloured on its own
+  const coat = (map = null) => new T.MeshStandardMaterial({ color: map ? 0xffffff : 0xf6f7f4, map, roughness: 0.48, metalness: 0.08 });
+  const textures = {
+    fin: canvasTexture(512, 376, () => {}),
+    rudder: canvasTexture(64, 256, () => {}),
+    title: canvasTexture(1024, 128, () => {}),
+    emblem: canvasTexture(256, 256, () => {}),
+  };
+  textures.fin.repeat.set(1 / FIN.w, 1 / FIN.h);
+  textures.fin.offset.set(-FIN.x0 / FIN.w, 0);
+  const paint = { body: coat(), belly: coat(), cheat: coat(), stripe: coat(), engine: coat(), band: coat(), winglet: coat(), fin: coat(textures.fin), rudder: coat(textures.rudder) };
+  for (const m of [flapMat, spoilerMat, moveMat, paint.rudder]) m.userData.edge = dark;
   const cy = 4;
-  const fus = F.mesh(new T.CylinderGeometry(2, 2, 24, 28), white, body, [0, cy, 0]);
+  const fus = F.mesh(new T.CylinderGeometry(2, 2, 24, 28), paint.body, body, [0, cy, 0]);
   fus.rotation.z = Math.PI / 2;
-  const nose = F.mesh(new T.SphereGeometry(2, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), white, body, [12, cy, 0]);
+  // lower fuselage: a slightly larger open shell from just under the side line round the bottom
+  const belly = F.mesh(new T.CylinderGeometry(2.006, 2.006, 24, 28, 1, true, Math.PI + 0.42, Math.PI - 0.84), paint.belly, body, [0, cy, 0]);
+  belly.rotation.z = Math.PI / 2;
+  belly.castShadow = false;
+  const nose = F.mesh(new T.SphereGeometry(2, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), paint.body, body, [12, cy, 0]);
   nose.rotation.z = -Math.PI / 2;
   nose.scale.set(1, 2.2, 1);
   // tail cone sweeps upward so the aircraft can rotate before the tail meets the runway
@@ -88,7 +260,7 @@ export function airlinerModel(F) {
   }
   cone.computeVertexNormals();
   cone.rotateZ(Math.PI / 2);
-  F.mesh(cone, white, body, [-16.75, cy, 0]);
+  F.mesh(cone, paint.body, body, [-16.75, cy, 0]);
   // cockpit glazing
   for (const s of [-1, 1])
     for (const [z, w] of [[0.45, 0.8], [1.25, 0.65]]) {
@@ -100,22 +272,13 @@ export function airlinerModel(F) {
   const windows = [];
   for (let x = -10.5; x < 10.6; x += 0.95) if (Math.abs(x - 7.6) > 0.8) for (const s of [-1, 1]) windows.push({ p: [x, cy + 0.55, s * 1.93], s: [0.32, 0.42, 0.08] });
   F.batch(body, windows, glass);
+  const cheat = [], stripe = [], emblem = [];
   for (const s of [-1, 1]) {
-    F.cube(body, [33, 0.32, 0.06], [-1.5, cy - 0.45, s * 1.96], green);
-    F.cube(body, [30, 0.12, 0.06], [-1.5, cy - 0.78, s * 1.86], yellow);
+    cheat.push(F.cube(body, [33, 0.32, 0.06], [-1.5, cy - 0.45, s * 1.96], paint.cheat));
+    stripe.push(F.cube(body, [30, 0.12, 0.06], [-1.5, cy - 0.78, s * 1.86], paint.stripe));
     for (const x of [10.4, -11]) F.cube(body, [0.9, 1.75, 0.05], [x, cy + 0.15, s * 1.985], F.mat(0xdfe2e1, 0.5, 0.1));
   }
-  const title = canvasTexture(1024, 128, (c, w, h) => {
-    c.fillStyle = "#2f6b52";
-    c.font = "900 92px 'Space Grotesk', 'Arial Black', sans-serif";
-    c.textAlign = "center";
-    c.textBaseline = "middle";
-    c.fillText("SSUN AIR", w / 2 - 70, h / 2 + 4);
-    c.fillStyle = "#e8b828";
-    c.font = "800 58px sans-serif";
-    c.fillText("쑨에어", w / 2 + 330, h / 2 + 6);
-  });
-  const titleMat = new T.MeshStandardMaterial({ map: title, transparent: true, roughness: 0.5 });
+  const titleMat = new T.MeshStandardMaterial({ map: textures.title, transparent: true, roughness: 0.5 });
   for (const s of [-1, 1]) {
     const m = F.mesh(new T.PlaneGeometry(9.5, 1.2), titleMat, body, [1.5, cy + 1.25, s * 1.62]);
     m.rotation.x = s * -0.67;
@@ -139,7 +302,7 @@ export function airlinerModel(F) {
       surf.spoilers.push(controlSurface(F, body, ...span(f0 + 0.02, f1 - 0.02, 3.1, true), 1.35, 0.08, spoilerMat));
     }
     const tipY = 2.75 + 17 * Math.tan(5 * DEG);
-    const winglet = F.mesh(wingGeometry({ rootLE: -5.5, rootTE: -7.3, tipLE: -7.1, tipTE: -7.9, span: 2.2, thick: 0.14, tipThick: 0.08, side: 1 }), green, body, [0, tipY, s * 17]);
+    const winglet = F.mesh(wingGeometry({ rootLE: -5.5, rootTE: -7.3, tipLE: -7.1, tipTE: -7.9, span: 2.2, thick: 0.14, tipThick: 0.08, side: 1 }), paint.winglet, body, [0, tipY, s * 17]);
     winglet.rotation.x = -Math.PI / 2 + s * 0.25;
     F.mesh(wingGeometry({ rootLE: -13, rootTE: -16.6, tipLE: -17.4, tipTE: -18.8, span: 6.2, thick: 0.22, tipThick: 0.1, dihedral: 6, side: s }), wingMat, body, [0, cy + 0.6, 0]);
     const stab = (f) => [lerp(-16.6, -18.8, f) + 0.9, cy + 0.6 + f * 6.2 * Math.tan(6 * DEG), s * f * 6.2];
@@ -149,7 +312,7 @@ export function airlinerModel(F) {
     const eng = new T.Group();
     eng.position.set(0.9, 1.75, s * 5.7);
     body.add(eng);
-    const nac = F.mesh(new T.CylinderGeometry(0.88, 1.05, 4.4, 24, 1, true), white, eng);
+    const nac = F.mesh(new T.CylinderGeometry(0.88, 1.05, 4.4, 24, 1, true), paint.engine, eng);
     nac.rotation.z = Math.PI / 2;
     const lip = F.mesh(new T.TorusGeometry(1.0, 0.1, 8, 24), grey, eng, [2.2, 0, 0]);
     lip.rotation.y = Math.PI / 2;
@@ -160,30 +323,20 @@ export function airlinerModel(F) {
     const ex = F.mesh(new T.ConeGeometry(0.62, 1.4, 16), grey, eng, [-2.7, 0, 0]);
     ex.rotation.z = Math.PI / 2;
     F.cube(eng, [3.2, 0.9, 0.3], [-0.6, 0.95, 0], white);
-    const band = F.mesh(new T.CylinderGeometry(1.07, 1.07, 0.5, 24, 1, true), green, eng, [0.6, 0, 0]);
+    const band = F.mesh(new T.CylinderGeometry(1.07, 1.07, 0.5, 24, 1, true), paint.band, eng, [0.6, 0, 0]);
     band.rotation.z = Math.PI / 2;
   }
   F.cube(body, [7, 0.9, 3.6], [-1.6, 2.15, 0], F.mat(0xe7e9e7, 0.5, 0.1), true); // wing-body fairing
-  // vertical fin with the sun-and-S tail logo
-  const fin = F.mesh(finGeometry(), green, body, [0, cy + 1.6, 0]);
+  // vertical fin painted with the livery's tail pattern; the classic livery adds the sun-and-S logo on top
+  const fin = F.mesh(finGeometry(), paint.fin, body, [0, cy + 1.6, 0]);
   fin.castShadow = true;
-  surf.rudder = controlSurface(F, body, [-19.4 + 1.3 - 0.15, cy + 1.9, 0], [-21.6 + 1.3 - 0.05, cy + 1.6 + 6.3, 0], 1.3, 0.44, moveMat, true);
-  const logo = canvasTexture(256, 256, (c, w) => {
-    c.fillStyle = "#f6d24a";
-    c.beginPath();
-    c.arc(w / 2, w / 2, w * 0.4, 0, Math.PI * 2);
-    c.fill();
-    c.fillStyle = "#2f6b52";
-    c.font = "900 150px 'Space Grotesk', 'Arial Black', sans-serif";
-    c.textAlign = "center";
-    c.textBaseline = "middle";
-    c.fillText("S", w / 2, w / 2 + 10);
-  });
-  const logoMat = new T.MeshStandardMaterial({ map: logo, transparent: true, roughness: 0.5 });
+  surf.rudder = controlSurface(F, body, [RUDDER.x0, cy + 1.6 + RUDDER.y0, 0], [RUDDER.x1, cy + 1.6 + RUDDER.y1, 0], RUDDER.chord, 0.44, paint.rudder, true);
+  const logoMat = new T.MeshStandardMaterial({ map: textures.emblem, transparent: true, roughness: 0.5 });
   for (const s of [-1, 1]) {
     const m = F.mesh(new T.PlaneGeometry(2.9, 2.9), logoMat, body, [-18.6, cy + 4.6, s * 0.2]);
     if (s < 0) m.rotation.y = Math.PI;
     m.castShadow = false;
+    emblem.push(m);
   }
   // landing gear (retractable)
   const gear = new T.Group();
@@ -210,8 +363,9 @@ export function airlinerModel(F) {
   const strobe = lamp(0xffffff, [-21.2, cy + 0.6, 0]);
   const beacon = lamp(0xff2020, [-2, cy + 2.05, 0]);
   const landing = [lamp(0xfff6d8, [1.6, 2.6, 2.4]), lamp(0xfff6d8, [1.6, 2.6, -2.4])];
-  plane.userData = { body, gear, strobe, beacon, landing, surf, deflect: { aileron: 0, elevator: 0, rudder: 0, flaps: 0, spoilers: 0 } };
+  plane.userData = { body, gear, strobe, beacon, landing, surf, paint, textures, cheat, stripe, emblem, deflect: { aileron: 0, elevator: 0, rudder: 0, flaps: 0, spoilers: 0 } };
   plane.rotation.order = "YZX";
+  applyLivery(plane, livery);
   return plane;
 }
 
@@ -222,7 +376,7 @@ const lightPoints = (positions, color, size = 4) => {
 };
 
 export class RunwayView {
-  constructor(canvas, game, { preview = false } = {}) {
+  constructor(canvas, game, { preview = false, livery } = {}) {
     this.canvas = canvas;
     this.game = game;
     this.preview = preview;
@@ -242,7 +396,7 @@ export class RunwayView {
     this.smoke = [];
     this.lights();
     this.airport();
-    this.plane = airlinerModel(this.F);
+    this.plane = airlinerModel(this.F, getLivery(livery));
     this.scene.add(this.plane);
     this.particles();
     this.resize();
@@ -380,8 +534,8 @@ export class RunwayView {
       roof.scale.set(0.35, 1, 1);
     }
     // parked airliners at the gates
-    for (const [x, rot] of [[1180, 0], [1396, 0], [1756, 0]]) {
-      const p = airlinerModel(F);
+    for (const [x, rot, id] of [[1180, 0, "saekdong"], [1396, 0, "skyblue"], [1756, 0, "tangerine"]]) {
+      const p = airlinerModel(F, getLivery(id));
       p.userData.landing.forEach((m) => (m.visible = false));
       p.position.set(x, 0, -385);
       p.rotation.y = Math.PI / 2 + rot;
@@ -470,6 +624,10 @@ export class RunwayView {
     for (const p of S.flaps) p.rotation.z = d.flaps * DEG;
     for (const p of S.spoilers) p.rotation.z = -d.spoilers * DEG;
     S.rudder.rotation.y = d.rudder * DEG;
+  }
+  /** Repaints the player's aircraft without rebuilding the scene. */
+  setLivery(id) {
+    applyLivery(this.plane, getLivery(id));
   }
   resize() {
     const r = this.canvas.getBoundingClientRect();

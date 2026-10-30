@@ -1,4 +1,4 @@
-import { RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, GRADES, FAILURES, HOLD, formatWind, clamp, holdStick, holdLabel } from "./runway-engine.js";
+import { RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, GRADES, FAILURES, HOLD, formatWind, clamp, holdStick, holdLabel, LIVERIES, LIVERY_KEY, getLivery } from "./runway-engine.js";
 import { RunwayView } from "./runway-view.js";
 
 const shareIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg>';
@@ -39,6 +39,31 @@ const YOKE_SVG = `<svg viewBox="-60 -48 120 96" aria-hidden="true">
 <circle class="rw-yk-hub" cy="8" r="10"/><path class="rw-yk-mark" d="M0-1V-12"/></g></g>
 <g transform="translate(44 30)"><rect class="rw-yk-box" x="-12" y="-12" width="24" height="24" rx="4"/><path class="rw-yk-grid" d="M-12 0H12M0-12V12"/><circle id="rw-yk-dot" class="rw-yk-dot" r="3.4"/></g>
 </svg>`;
+const storedLivery = () => { try { return localStorage.getItem(LIVERY_KEY); } catch { return null; } };
+/** A side-view mini plane in the livery's colours for the select cards. */
+function liveryPreview(lv) {
+  const k = lv.colors, id = "rwl-" + lv.id, fin = "M17 32 4 6h7l20 26Z", body = "M9 26h91q16 0 17 7-1 7-17 7H15Q6 40 3 30Z";
+  const spiral = Array.from({ length: 33 }, (_, i) => { const t = i / 32, a = t * Math.PI * 3.4, r = 0.4 + t * 3; return `${(14 + Math.cos(a) * r).toFixed(2)} ${(19 - Math.sin(a) * r).toFixed(2)}`; }).join(" ");
+  const waves = (y) => `M0 ${y}q4-2 8 0t8 0 8 0 8 0`;
+  const tail = {
+    swirl: `<circle cx="14" cy="19" r="4.6" fill="none" stroke="${k.accent2}" stroke-width="1.2"/><path d="M${spiral}" fill="none" stroke="${k.accent}" stroke-width="1.3" stroke-linecap="round"/>`,
+    stripes: [k.accent, k.accent2, k.accent3, k.accent4, k.accent5].map((c, i) => `<rect x="0" y="${5 + i * 3.4}" width="32" height="2.5" fill="${c}"/>`).join(""),
+    sweep: `<rect width="32" height="34" fill="url(#${id}-g)"/><path d="M27 32Q19 21 9 6" fill="none" stroke="${k.accent2}" stroke-width=".9"/>`,
+    slant: `<path d="M0 32h32L0 21Z" fill="${k.accent}"/><circle cx="15" cy="16" r="1.8" fill="${k.accent2}"/>`,
+    wing: `<path d="M24 30C20 23 12 14 6 7c6 3 16 12 18 23Z" fill="${k.accent}"/><path d="M24 30C22 23 17 14 13 6c4 4 11 14 11 24Z" fill="${k.accent2}"/>`,
+    band: `<path d="M26 33h-3L4 5h3Z" fill="${k.accent}"/>`,
+    waves: `<path d="${waves(26)}V33H0Z" fill="${k.accent}"/><path d="${waves(29)}V33H0Z" fill="${k.accent2}"/><path d="${waves(21)}" fill="none" stroke="#fff" stroke-width=".8"/>`,
+    sun: `<circle cx="14" cy="17" r="4.6" fill="${k.accent}"/><text x="14" y="19.6" font-size="7.5" font-weight="900" text-anchor="middle" fill="${k.tail}">S</text>`,
+  }[lv.tail] ?? "";
+  const windows = Array.from({ length: 15 }, (_, i) => `<circle cx="${26 + i * 4.6}" cy="30" r=".85"/>`).join("");
+  return `<svg viewBox="0 0 120 48" aria-hidden="true"><defs><clipPath id="${id}-f"><path d="${fin}"/></clipPath><clipPath id="${id}-b"><path d="${body}"/></clipPath><linearGradient id="${id}-g" x1="0" y1="1" x2=".6" y2="0"><stop offset="0" stop-color="${k.tail}"/><stop offset=".55" stop-color="${k.accent}"/><stop offset="1" stop-color="${k.tail}"/></linearGradient></defs>
+<g clip-path="url(#${id}-f)"><rect width="32" height="34" fill="${k.tail}"/>${tail}</g><path d="${fin}" fill="none" stroke="#0b162030" stroke-width=".5"/>
+<path d="M1 28 14 29v2H1Z" fill="#b9c3c9"/>
+<g clip-path="url(#${id}-b)"><rect width="120" height="48" fill="${k.body}"/><rect y="34.6" width="120" height="8" fill="${k.belly}"/>${k.cheat ? `<rect x="4" y="32.6" width="112" height="1.8" fill="${k.cheat}"/>` : ""}${k.stripe ? `<rect x="4" y="34.6" width="108" height=".7" fill="${k.stripe}"/>` : ""}</g>
+<path d="${body}" fill="none" stroke="#0b162040" stroke-width=".6"/><g fill="#263540">${windows}</g><path d="M106 28.4h5.4l2.6 2.8h-8Z" fill="#263540"/>
+<path d="M44 36.5h26l-8 2Z" fill="#9aa6ad"/><rect x="50" y="38.5" width="17" height="6.4" rx="3.2" fill="${k.engine}" stroke="#0b162040" stroke-width=".5"/><rect x="59" y="38.5" width="3" height="6.4" fill="${k.band}"/>
+</svg>`;
+}
 const pad = (n, w = 3) => String(Math.round(Math.abs(n))).padStart(w, "0");
 const signed = (n, digits = 0) => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(n).toFixed(digits);
 
@@ -108,6 +133,8 @@ export class RunwayController {
     this.boost = null; // the hold-to-accelerate button being held: { id, x, y, stick }
     this.tilt = null;
     this.sound = new Sound(sound);
+    this.livery = getLivery(storedLivery());
+    this.picking = false;
     app.innerHTML = header + `<main id="main" class="game-shell runway" data-stage="takeoff" data-phase="ready">
 <canvas id="game" tabindex="0" aria-label="활주로 3D 화면: 위아래로 끌면 기수, 좌우로 끌면 기울기"></canvas>
 <div class="rw-top"><div class="rw-stage"><span id="rw-stage-label"></span><b id="rw-wind" translate="no"></b></div>
@@ -122,6 +149,7 @@ export class RunwayController {
 <div id="rw-loc" class="rw-loc" aria-hidden="true"><div class="rw-scale h"><span></span><span></span><span class="c"></span><span></span><span></span><b id="rw-loc-dia"></b></div><small translate="no">LOC</small></div>
 <div id="rw-stick" class="rw-stick" hidden aria-hidden="true"><i></i></div>
 <div id="rw-intro" class="rw-intro"></div>
+<div id="rw-livery" class="rw-livery" hidden></div>
 <div class="rw-pad" aria-label="조종 버튼"><div class="rw-thr"><button data-hold="throttle:1" aria-label="추력 올리기">THR +</button><button data-hold="throttle:-1" aria-label="추력 줄이기">THR −</button></div>
 <div id="rw-boost" class="rw-boost" role="button" aria-label="누르고 있으면 가속 · 끌어서 조종 (아래로 끌면 기수 들기)"><span class="rw-boost-ring"><i id="rw-boost-knob" class="rw-boost-knob"></i><b id="rw-boost-arrow" class="rw-boost-arrow"></b></span><span class="rw-boost-text">누르고 가속</span><small id="rw-boost-dir" class="rw-boost-dir" aria-hidden="true"></small></div>
 <div class="rw-yoke"><button data-hold="pitch:-1" class="up" aria-label="기수 내리기">▲</button><button data-hold="roll:-1" class="left" aria-label="왼쪽으로 기울이기">◀</button><div id="rw-wheel" class="rw-wheel" role="img" aria-label="조종 핸들: 위아래로 끌면 기수, 좌우로 끌면 기울기">${YOKE_SVG}</div><button data-hold="roll:1" class="right" aria-label="오른쪽으로 기울이기">▶</button><button data-hold="pitch:1" class="down" aria-label="기수 들기">▼</button></div></div>
@@ -129,9 +157,11 @@ export class RunwayController {
 </main>`;
     this.shell = app.querySelector(".runway");
     this.canvas = app.querySelector("#game");
-    this.view = new RunwayView(this.canvas, this.g);
+    this.view = new RunwayView(this.canvas, this.g, { livery: this.livery.id });
     this.bind();
     this.showIntro();
+    // first visit: pick an aircraft before the first flight
+    if (!LIVERIES.some((l) => l.id === storedLivery())) this.openLivery();
     let prev = performance.now();
     const frame = (now) => {
       if (this.dead) return;
@@ -173,6 +203,8 @@ export class RunwayController {
       if (a === "start") this.start();
       if (a === "landing") this.toLanding();
       if (a === "tilt") this.toggleTilt();
+      if (a === "livery") this.openLivery();
+      if (a === "pick") this.pickLivery(b.dataset.livery);
     }, opt);
     // hold-to-fly buttons: several can be held at once with multitouch
     const held = new Map();
@@ -280,6 +312,10 @@ export class RunwayController {
     };
     window.addEventListener("keydown", (e) => {
       if (this.modal.open || e.target.closest?.("input,textarea,select")) return;
+      if (this.picking) {
+        if (e.code === "Escape" && storedLivery()) { e.preventDefault(); this.closeLivery(); }
+        return;
+      }
       const onButton = e.target.closest?.("button,a");
       if ((e.code === "Space" || e.code === "Enter") && !onButton) {
         e.preventDefault();
@@ -401,7 +437,29 @@ export class RunwayController {
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
   }
+  openLivery() {
+    if (this.g.phase !== "ready") return;
+    this.picking = true;
+    const el = this.$("rw-livery");
+    el.innerHTML = `<section class="rw-lv-panel" role="dialog" aria-modal="true" aria-labelledby="rw-lv-title"><span class="rw-eyebrow" translate="no">CHOOSE YOUR AIRCRAFT</span><h2 id="rw-lv-title">기체 선택</h2><p>오늘 탈 비행기를 고르세요. 실제 항공사와 관계없는 가상의 도장이에요.</p><div class="rw-lv-grid">${LIVERIES.map((lv) => `<button class="rw-lv-card" data-rw="pick" data-livery="${lv.id}" aria-pressed="${lv.id === this.livery.id}">${liveryPreview(lv)}<b>${lv.name}</b><small>${lv.tagline}</small></button>`).join("")}</div></section>`;
+    el.hidden = false;
+    this.set("rw-intro", "hidden", true);
+    el.querySelector('[aria-pressed="true"]')?.focus({ preventScroll: true });
+  }
+  closeLivery() {
+    this.picking = false;
+    this.$("rw-livery").hidden = true;
+    this.showIntro();
+    this.$("rw-intro").querySelector('[data-rw="start"]')?.focus({ preventScroll: true });
+  }
+  pickLivery(id) {
+    this.livery = getLivery(id);
+    try { localStorage.setItem(LIVERY_KEY, this.livery.id); } catch {}
+    this.view.setLivery(this.livery.id);
+    this.closeLivery();
+  }
   start() {
+    if (this.picking) return;
     if (this.g.start()) {
       this.set("rw-intro", "hidden", true);
       this.canvas.focus({ preventScroll: true });
@@ -419,9 +477,16 @@ export class RunwayController {
     this.set("rw-intro", "hidden", false);
     this.cache["rw-introhidden"] = false;
     this.$("rw-intro").innerHTML = to
-      ? `<span class="rw-eyebrow" translate="no">STAGE 1 · TAKEOFF · RWY ${RWY.id}</span><h1>김포 14R, 이륙 준비</h1><p>추력을 끝까지 올려 속도를 내고, VR에서 기수를 드세요. 너무 일찍 들거나 너무 많이 들면 꼬리가 활주로에 닿아요.</p><dl translate="no"><div><dt>V1</dt><dd>${V_SPEEDS.v1}</dd></div><div><dt>VR</dt><dd>${V_SPEEDS.vr}</dd></div><div><dt>V2</dt><dd>${V_SPEEDS.v2}</dd></div><div><dt>WIND</dt><dd>${formatWind(w.dir, w.speed)}</dd></div></dl><button class="primary" data-rw="start">이륙 시작 <kbd translate="no">SPACE</kbd></button><button class="rw-skip" data-rw="landing">착륙만 연습하기 →</button>`
-      : `<span class="rw-eyebrow" translate="no">STAGE 2 · LANDING · ILS ${RWY.id}</span><h1>최종 접근, 활주로 14R</h1><p>PAPI 흰색 2개·빨간색 2개를 유지하세요. 측풍이 불면 기울여 중심선을 지키고, 50피트 아래에서 추력을 줄이며 살짝 플레어!</p><dl translate="no"><div><dt>VAPP</dt><dd>${VAPP}</dd></div><div><dt>GS</dt><dd>${RWY.gs.toFixed(1)}°</dd></div><div><dt>WIND</dt><dd>${formatWind(w.dir, w.speed)}</dd></div><div><dt>X-WIND</dt><dd>${Math.abs(w.cross).toFixed(0)}KT ${w.cross >= 0 ? "R" : "L"}</dd></div></dl><button class="primary" data-rw="start">접근 시작 <kbd translate="no">SPACE</kbd></button>`;
+      ? `<span class="rw-eyebrow" translate="no">STAGE 1 · TAKEOFF · RWY ${RWY.id}</span><h1>김포 14R, 이륙 준비</h1><p>추력을 끝까지 올려 속도를 내고, VR에서 기수를 드세요. 너무 일찍 들거나 너무 많이 들면 꼬리가 활주로에 닿아요.</p><dl translate="no"><div><dt>V1</dt><dd>${V_SPEEDS.v1}</dd></div><div><dt>VR</dt><dd>${V_SPEEDS.vr}</dd></div><div><dt>V2</dt><dd>${V_SPEEDS.v2}</dd></div><div><dt>WIND</dt><dd>${formatWind(w.dir, w.speed)}</dd></div></dl><button class="primary" data-rw="start">이륙 시작 <kbd translate="no">SPACE</kbd></button><button class="rw-skip" data-rw="landing">착륙만 연습하기 →</button>${this.liveryButton()}`
+      : `<span class="rw-eyebrow" translate="no">STAGE 2 · LANDING · ILS ${RWY.id}</span><h1>최종 접근, 활주로 14R</h1><p>PAPI 흰색 2개·빨간색 2개를 유지하세요. 측풍이 불면 기울여 중심선을 지키고, 50피트 아래에서 추력을 줄이며 살짝 플레어!</p><dl translate="no"><div><dt>VAPP</dt><dd>${VAPP}</dd></div><div><dt>GS</dt><dd>${RWY.gs.toFixed(1)}°</dd></div><div><dt>WIND</dt><dd>${formatWind(w.dir, w.speed)}</dd></div><div><dt>X-WIND</dt><dd>${Math.abs(w.cross).toFixed(0)}KT ${w.cross >= 0 ? "R" : "L"}</dd></div></dl><button class="primary" data-rw="start">접근 시작 <kbd translate="no">SPACE</kbd></button>${this.liveryButton()}`;
     this.updateHUD(true);
+  }
+  liveryButton() {
+    const k = this.livery.colors;
+    return `<button class="rw-lv-btn" data-rw="livery"><i style="--a:${k.tail};--b:${k.body}" aria-hidden="true"></i><span>${this.livery.name}</span><b>기체 선택</b></button>`;
+  }
+  liveryTag() {
+    return `<span class="rw-lv-tag"><i style="--a:${this.livery.colors.tail};--b:${this.livery.colors.body}" aria-hidden="true"></i><span>${this.livery.name}</span></span>`;
   }
   onEvent(e) {
     if (e.type === "atc") this.atc(e.en, e.ko);
@@ -506,7 +571,7 @@ export class RunwayController {
     if (!r) return;
     const el = this.$("result");
     el.hidden = false;
-    el.innerHTML = `<section class="result-card rw-result"><span class="eyebrow" translate="no">TAKEOFF COMPLETE · SSUN 123</span><h2>이륙 성공!</h2><div class="result-value">${r.value}<small>점</small></div><dl class="rw-stats"><div><dt>로테이트</dt><dd translate="no">${r.rotateKt}<small>KT</small></dd><span translate="no">VR ${V_SPEEDS.vr}</span></div><div><dt>상승 자세</dt><dd translate="no">${r.climbPitch}<small>°</small></dd><span translate="no">TGT 15°</span></div><div><dt>300ft 속도</dt><dd translate="no">${r.endKt}<small>KT</small></dd><span translate="no">V2+10</span></div></dl><p>이제 김포로 다시 돌아와 착륙할 차례예요.</p><div class="result-actions"><button class="primary" data-rw="landing">착륙하러 가기 → <kbd translate="no">SPACE</kbd></button></div></section>`;
+    el.innerHTML = `<section class="result-card rw-result"><span class="eyebrow" translate="no">TAKEOFF COMPLETE · SSUN 123</span><h2>이륙 성공!</h2><div class="result-value">${r.value}<small>점</small></div>${this.liveryTag()}<dl class="rw-stats"><div><dt>로테이트</dt><dd translate="no">${r.rotateKt}<small>KT</small></dd><span translate="no">VR ${V_SPEEDS.vr}</span></div><div><dt>상승 자세</dt><dd translate="no">${r.climbPitch}<small>°</small></dd><span translate="no">TGT 15°</span></div><div><dt>300ft 속도</dt><dd translate="no">${r.endKt}<small>KT</small></dd><span translate="no">V2+10</span></div></dl><p>이제 김포로 다시 돌아와 착륙할 차례예요.</p><div class="result-actions"><button class="primary" data-rw="landing">착륙하러 가기 → <kbd translate="no">SPACE</kbd></button></div></section>`;
   }
   showResult() {
     if (this.resultShown || this.g.phase !== "result") return;
@@ -519,7 +584,7 @@ export class RunwayController {
     const stats = ld && ld.grade !== "goaround" ? `<dl class="rw-stats"><div><dt>접지 강하율</dt><dd translate="no">${ld.fpm}<small>FPM</small></dd><span>${GRADES[ld.grade]}</span></div><div><dt>중심선 오차</dt><dd translate="no">${Math.abs(ld.centerline).toFixed(1)}<small>M</small></dd><span translate="no">${ld.centerline > 0 ? "R" : ld.centerline < 0 ? "L" : "C/L"}</span></div><div><dt>접지 위치</dt><dd translate="no">${signed(ld.distance)}<small>M</small></dd><span translate="no">AIM PT ${RWY.aim}M</span></div></dl>` : "";
     const parts = r.complete ? `<div class="rw-parts"><span>이륙 <b>${to.value}점</b></span><span>착륙 <b>${ld.value}점</b></span></div>` : "";
     el.hidden = false;
-    el.innerHTML = `<section class="result-card rw-result ${reason && reason !== "goaround" ? "fail" : ""}"><span class="eyebrow" translate="no">${best ? "NEW PERSONAL BEST" : r.complete ? "FLIGHT COMPLETE · SSUN 123" : failedTakeoff ? "TAKEOFF FAILED" : "LANDING"}</span><h2>${title}</h2><div class="result-value">${r.value}<small>점</small></div>${parts}${stats}${reason ? `<p>${TIPS[reason] ?? ""}</p>` : `<p>${ld?.grade === "butter" ? "승객들이 박수를 쳤어요!" : "김포에 오신 것을 환영합니다."}</p>`}<div class="result-actions"><button class="primary" data-action="retry">다시 도전 ↻</button>${failedTakeoff ? '<button class="secondary" data-rw="landing">착륙 연습하기 →</button>' : ""}<button class="secondary" data-action="share">기록 공유 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>`;
+    el.innerHTML = `<section class="result-card rw-result ${reason && reason !== "goaround" ? "fail" : ""}"><span class="eyebrow" translate="no">${best ? "NEW PERSONAL BEST" : r.complete ? "FLIGHT COMPLETE · SSUN 123" : failedTakeoff ? "TAKEOFF FAILED" : "LANDING"}</span><h2>${title}</h2><div class="result-value">${r.value}<small>점</small></div>${parts}${this.liveryTag()}${stats}${reason ? `<p>${TIPS[reason] ?? ""}</p>` : `<p>${ld?.grade === "butter" ? "승객들이 박수를 쳤어요!" : "김포에 오신 것을 환영합니다."}</p>`}<div class="result-actions"><button class="primary" data-action="retry">다시 도전 ↻</button>${failedTakeoff ? '<button class="secondary" data-rw="landing">착륙 연습하기 →</button>' : ""}<button class="secondary" data-action="share">기록 공유 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>`;
   }
   destroy() {
     this.dead = true;

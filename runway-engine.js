@@ -39,6 +39,34 @@ export const FAILURES = {
   hard: "너무 세게 내렸어요",
 };
 
+/**
+ * Fictional homage liveries (no real airline names or marks). Colours are "#rrggbb"; null hides that part.
+ * body = upper fuselage, belly = lower fuselage, cheat/stripe = the bold and thin side lines, rudder follows the fin,
+ * band = the ring on each engine; `tail` picks the fin pattern drawn in runway-view.js.
+ */
+export const LIVERIES = [
+  { id: "skyblue", name: "스카이블루 에어", title: "SKY BLUE AIR", tagline: "하늘색 동체, 은빛 배, 소용돌이 꼬리", tail: "swirl",
+    colors: { body: "#a8d3ee", belly: "#c4c9cd", cheat: null, stripe: "#f4f6f8", tail: "#f6f7f4", accent: "#d8323c", accent2: "#1f4e9c", rudder: "#f6f7f4", engine: "#a8d3ee", band: "#7db6dc", winglet: "#a8d3ee", title: "#1f4e9c" } },
+  { id: "midnight", name: "미드나잇 메탈릭", title: "MIDNIGHT AIR", tagline: "흰 동체에 짙은 메탈릭 네이비", tail: "sweep", metal: true,
+    colors: { body: "#f6f7f4", belly: "#eceff1", cheat: "#1c2a4c", stripe: null, tail: "#1c2a4c", accent: "#6f83a8", accent2: "#c9d2e0", rudder: "#1c2a4c", engine: "#1c2a4c", band: "#9eabc2", winglet: "#1c2a4c", title: "#1c2a4c" } },
+  { id: "saekdong", name: "색동 스트라이프", title: "SAEKDONG AIR", tagline: "회색·흰색 동체, 무지개 색동 꼬리", tail: "stripes",
+    colors: { body: "#eef0f1", belly: "#b8bec3", cheat: null, stripe: "#9aa2a8", tail: "#eef0f1", accent: "#d93a3a", accent2: "#2f5fb3", accent3: "#f2c230", accent4: "#3d9a5a", accent5: "#9aa2a8", rudder: "#eef0f1", engine: "#c6cbcf", band: "#2f5fb3", winglet: "#2f5fb3", title: "#5b6670" } },
+  { id: "tangerine", name: "탠저린 제트", title: "TANGERINE JET", tagline: "선명한 주황 꼬리와 엔진", tail: "slant",
+    colors: { body: "#f6f7f4", belly: "#ff7a1a", cheat: null, stripe: "#ff7a1a", tail: "#ff7a1a", accent: "#ffa253", accent2: "#f6f7f4", rudder: "#ff7a1a", engine: "#ff7a1a", band: "#f6f7f4", winglet: "#ff7a1a", title: "#ff7a1a" } },
+  { id: "butterfly", name: "버터플라이 옐로", title: "BUTTERFLY AIR", tagline: "노란 꼬리에 청록 날개 무늬", tail: "wing",
+    colors: { body: "#f6f7f4", belly: "#eef1f2", cheat: null, stripe: null, tail: "#ffd21f", accent: "#14897e", accent2: "#5cbf6a", rudder: "#ffd21f", engine: "#ffd21f", band: "#14897e", winglet: "#ffd21f", title: "#14897e" } },
+  { id: "crimson", name: "크림슨 웨이", title: "CRIMSON WAY", tagline: "빨간 꼬리를 가로지르는 흰 줄", tail: "band",
+    colors: { body: "#f6f7f4", belly: "#e9ecef", cheat: null, stripe: "#c8102e", tail: "#c8102e", accent: "#f6f7f4", rudder: "#c8102e", engine: "#c8102e", band: "#f6f7f4", winglet: "#c8102e", title: "#c8102e" } },
+  { id: "ocean", name: "오션 브리즈", title: "OCEAN BREEZE", tagline: "하늘빛 물결 꼬리, 청록 엔진", tail: "waves",
+    colors: { body: "#f6f7f4", belly: "#e6eef2", cheat: null, stripe: "#3bb8e0", tail: "#7ed6ee", accent: "#3bb8e0", accent2: "#1f86b8", rudder: "#7ed6ee", engine: "#1e8a9a", band: "#3bb8e0", winglet: "#3bb8e0", title: "#1f86b8" } },
+  { id: "ssun", name: "쑨에어 클래식", title: "SSUN AIR", tagline: "초록과 금빛, 해와 S 꼬리", tail: "sun",
+    colors: { body: "#f6f7f4", belly: "#f6f7f4", cheat: "#2f6b52", stripe: "#f6d24a", tail: "#2f6b52", accent: "#f6d24a", accent2: "#e8b828", rudder: "#f2b632", engine: "#f6f7f4", band: "#2f6b52", winglet: "#2f6b52", title: "#2f6b52" } },
+];
+export const DEFAULT_LIVERY = "ssun";
+export const LIVERY_KEY = "ssunplay.runway.livery";
+/** The livery for a stored id, falling back to the classic Ssun Air scheme for anything unknown. */
+export const getLivery = (id) => LIVERIES.find((l) => l.id === id) ?? LIVERIES.find((l) => l.id === DEFAULT_LIVERY);
+
 export function rng(seed = 1) {
   let s = seed >>> 0 || 1;
   return () => {

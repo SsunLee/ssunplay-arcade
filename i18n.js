@@ -269,7 +269,26 @@ const rows=[
  ["기수↓", "Nose ↓", "機首↓", "機頭↓"],
  ["◀ 기울기", "◀ Bank", "◀ 傾き", "◀ 傾斜"],
  ["기울기 ▶", "Bank ▶", "傾き ▶", "傾斜 ▶"],
- ["가속 버튼: 화면 아래 가운데 버튼을 누르고 있으면 추력이 끝까지 올라가요. 누른 채로 아래로 끌면 기수 들기, 위로 끌면 기수 내리기, 좌우로 끌면 기울이기예요(조종 핸들도 같이 움직여요). 손을 떼면 조종은 가운데로 돌아오고, 추력은 이륙 전 지상에서는 아이들로, 비행 중에는 누르기 전 값으로 돌아가요.", "Hold button: press and hold the button at the bottom center and the thrust goes all the way up. While holding, drag down for nose up, up for nose down, sideways to bank (the yoke moves along). Let go and the controls return to center; the thrust drops to idle on the ground before liftoff, or back to its earlier setting in the air.", "加速ボタン：画面下中央のボタンを押し続けると推力が最大まで上がります。押したまま下へドラッグで機首上げ、上で機首下げ、左右で傾き(操縦桿も一緒に動きます)。離すと操縦は中央に戻り、推力は離陸前の地上ならアイドルに、飛行中なら押す前の値に戻ります。", "加速按鈕：按住畫面下方中央的按鈕，推力會推到底。按住時往下拖抬頭、往上拖壓低機頭、左右拖傾斜（駕駛盤也會跟著動）。放開後操控回到中間；推力在離地前的地面會回到慢車，飛行中則回到按下前的設定。"],];
+ ["가속 버튼: 화면 아래 가운데 버튼을 누르고 있으면 추력이 끝까지 올라가요. 누른 채로 아래로 끌면 기수 들기, 위로 끌면 기수 내리기, 좌우로 끌면 기울이기예요(조종 핸들도 같이 움직여요). 손을 떼면 조종은 가운데로 돌아오고, 추력은 이륙 전 지상에서는 아이들로, 비행 중에는 누르기 전 값으로 돌아가요.", "Hold button: press and hold the button at the bottom center and the thrust goes all the way up. While holding, drag down for nose up, up for nose down, sideways to bank (the yoke moves along). Let go and the controls return to center; the thrust drops to idle on the ground before liftoff, or back to its earlier setting in the air.", "加速ボタン：画面下中央のボタンを押し続けると推力が最大まで上がります。押したまま下へドラッグで機首上げ、上で機首下げ、左右で傾き(操縦桿も一緒に動きます)。離すと操縦は中央に戻り、推力は離陸前の地上ならアイドルに、飛行中なら押す前の値に戻ります。", "加速按鈕：按住畫面下方中央的按鈕，推力會推到底。按住時往下拖抬頭、往上拖壓低機頭、左右拖傾斜（駕駛盤也會跟著動）。放開後操控回到中間；推力在離地前的地面會回到慢車，飛行中則回到按下前的設定。"],
+ ["기체 선택", "Choose aircraft", "機体を選ぶ", "選擇機體"],
+ ["오늘 탈 비행기를 고르세요. 실제 항공사와 관계없는 가상의 도장이에요.", "Pick the plane you'll fly today. These are fictional liveries, unrelated to any real airline.", "今日乗る飛行機を選んでください。実在の航空会社とは関係のない架空の塗装です。", "選擇今天要開的飛機。這些是與真實航空公司無關的虛構塗裝。"],
+ ["스카이블루 에어", "Sky Blue Air", "スカイブルー・エア", "天藍航空"],
+ ["미드나잇 메탈릭", "Midnight Metallic", "ミッドナイト・メタリック", "午夜金屬"],
+ ["색동 스트라이프", "Saekdong Stripes", "セクトン・ストライプ", "色緞條紋"],
+ ["탠저린 제트", "Tangerine Jet", "タンジェリン・ジェット", "橘子噴射機"],
+ ["버터플라이 옐로", "Butterfly Yellow", "バタフライ・イエロー", "蝴蝶黃"],
+ ["크림슨 웨이", "Crimson Way", "クリムゾン・ウェイ", "緋紅之路"],
+ ["오션 브리즈", "Ocean Breeze", "オーシャン・ブリーズ", "海洋微風"],
+ ["쑨에어 클래식", "SSUN AIR Classic", "スンエア・クラシック", "SSUN AIR 經典"],
+ ["하늘색 동체, 은빛 배, 소용돌이 꼬리", "Sky-blue top, silver belly, swirl tail", "空色の胴体、銀色の腹、渦巻きの尾翼", "天藍機身、銀色機腹、漩渦尾翼"],
+ ["흰 동체에 짙은 메탈릭 네이비", "White body with deep metallic navy", "白い胴体に深いメタリックネイビー", "白色機身配深邃金屬海軍藍"],
+ ["회색·흰색 동체, 무지개 색동 꼬리", "Grey-and-white body, rainbow saekdong tail", "グレーと白の胴体、虹色のセクトン尾翼", "灰白機身、彩虹色緞尾翼"],
+ ["선명한 주황 꼬리와 엔진", "Bright orange tail and engines", "鮮やかなオレンジの尾翼とエンジン", "鮮橘色尾翼與引擎"],
+ ["노란 꼬리에 청록 날개 무늬", "Yellow tail with a teal wing motif", "黄色い尾翼に青緑の翼模様", "黃色尾翼配藍綠翅膀圖案"],
+ ["빨간 꼬리를 가로지르는 흰 줄", "A white stripe across a red tail", "赤い尾翼を横切る白いライン", "紅色尾翼上的一道白線"],
+ ["하늘빛 물결 꼬리, 청록 엔진", "Light-blue wave tail, teal engines", "水色の波の尾翼、青緑のエンジン", "天藍波浪尾翼、藍綠引擎"],
+ ["초록과 금빛, 해와 S 꼬리", "Green and gold, sun-and-S tail", "緑と金、太陽とSの尾翼", "綠與金、太陽 S 尾翼"]
+];
 if(ES.length!==rows.length)console.error('i18n: Spanish has '+ES.length+' rows, expected '+rows.length);
 export const ROW_COUNT=rows.length;
 const dictionaries=new Map(rows.map((row,i)=>[row[0],[...row.slice(1),ES[i]??row[1]]]));
