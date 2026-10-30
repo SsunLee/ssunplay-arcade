@@ -1,15 +1,8 @@
 import * as T from "three";
-import {
-  Factory,
-  chairModel,
-  humanModel,
-  carModel,
-  noiseTexture,
-} from "./models.js";
+import { Factory, carModel, noiseTexture } from "./models.js";
 import { STAGES, lerp, clamp, rng } from "./engine.js";
 const V = new T.Vector3(),
-  LOOK = new T.Vector3(),
-  N = new T.Vector3(0, 1, 0);
+  LOOK = new T.Vector3();
 export class GameView {
   constructor(kind, canvas, game, { preview = false } = {}) {
     this.kind = kind;
@@ -18,12 +11,7 @@ export class GameView {
     this.preview = preview;
     this.F = new Factory();
     this.scene = new T.Scene();
-    this.camera = new T.PerspectiveCamera(
-      kind === "curling" ? 52 : 55,
-      1,
-      0.06,
-      1200,
-    );
+    this.camera = new T.PerspectiveCamera(55, 1, 0.06, 1200);
     this.renderer = new T.WebGLRenderer({
       canvas,
       antialias: true,
@@ -38,16 +26,12 @@ export class GameView {
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
-    this.raycaster = new T.Raycaster();
-    this.plane = new T.Plane(N, -0.5);
-    this.pointer = new T.Vector2();
     this.root = new T.Group();
     this.scene.add(this.root);
     this.dead = false;
     this.clock = 0;
     this.makeLights();
-    if (kind === "curling") this.office();
-    else this.road();
+    this.road();
     this.resize();
     this.cameraReady = false;
     this.render(0);
@@ -72,87 +56,6 @@ export class GameView {
     this.sun.shadow.normalBias = 0.025;
     this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
-  }
-  office() {
-    const F = this.F,
-      root = this.root;
-    this.scene.background = new T.Color(0xecf0f4);
-    this.scene.fog = new T.Fog(
-      0xecf0f4,
-      8 + this.game.distance * 0.3,
-      30 + this.game.distance * 1.15,
-    );
-    this.hemisphere.intensity = 2.5;
-    this.sun.intensity = 1.65;
-    this.sun.position.set(-6, 12, 7);
-    const tiles = [[], []];
-    for (let x = -7; x <= 7; x++)
-      for (let z = 5; z > -Math.max(65, this.game.distance + 20); z--)
-        tiles[(x - z + 1000) % 2].push({
-          p: [x, -0.018, z],
-          s: [0.994, 0.03, 0.994],
-        });
-    for (let i = 0; i < 2; i++) {
-      const mesh = F.batch(root, tiles[i], i ? 0xd0d3d6 : 0xd7dadd);
-      mesh.castShadow = false;
-    }
-    const tops = [],
-      legs = [],
-      stands = [],
-      backs = [],
-      screens = [];
-    for (let i = 0; i < 22; i++)
-      for (const side of [-1, 1]) {
-        const x = side * 3.05,
-          z = -2.3 - i * 3.1;
-        tops.push({ p: [x, 0.76, z], s: [1.65, 0.065, 0.74] });
-        for (const s of [-1, 1])
-          legs.push({ p: [x + s * 0.61, 0.38, z], s: [0.11, 0.73, 0.64] });
-        stands.push(
-          { p: [x, 0.89, z - 0.12], s: [0.055, 0.22, 0.055] },
-          { p: [x, 0.79, z - 0.08], s: [0.27, 0.025, 0.17] },
-        );
-        backs.push({
-          p: [x, 1.12, z - 0.16],
-          s: [0.56, 0.38, 0.055],
-          r: [0, side * 0.12, 0],
-        });
-        screens.push({
-          p: [x, 1.12, z - 0.193],
-          s: [0.5, 0.32, 0.01],
-          r: [0, side * 0.12, 0],
-        });
-      }
-    F.batch(root, tops, 0xe9e8e3);
-    F.batch(root, legs, 0xb7bdc3);
-    F.batch(root, stands, 0x707a80);
-    F.batch(root, backs, 0x9eb8ae);
-    F.batch(root, screens, 0x354249);
-    for (const z of [-5.2, -17.5, -30])
-      for (const side of [-1, 1]) {
-        const p = new T.Group();
-        p.position.set(side * 1.95, 0, z);
-        F.mesh(
-          new T.CylinderGeometry(0.19, 0.15, 0.38, 12),
-          0xc8c9c0,
-          p,
-          [0, 0.19, 0],
-        );
-        F.mesh(
-          new T.CylinderGeometry(0.18, 0.18, 0.025, 12),
-          0x6f6c55,
-          p,
-          [0, 0.385, 0],
-        );
-        F.rod(p, [0, 0.36, 0], [0, 0.68, 0], 0.035, 0x81765d);
-        F.mesh(new T.IcosahedronGeometry(0.36, 1), 0x96b677, p, [0, 0.79, 0]);
-        root.add(p);
-      }
-    this.chair = chairModel(F);
-    this.human = humanModel(F);
-    root.add(this.chair, this.human);
-    this.camera.position.set(0, 2.2, 3.3);
-    this.camera.lookAt(0, 0.25, -0.5);
   }
   road() {
     const F = this.F,
@@ -418,28 +321,6 @@ export class GameView {
     );
     root.add(this.dust);
   }
-  floorPoint(clientX, clientY) {
-    const r = this.canvas.getBoundingClientRect();
-    this.pointer.set(
-      ((clientX - r.left) / r.width) * 2 - 1,
-      (-(clientY - r.top) / r.height) * 2 + 1,
-    );
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    const p = new T.Vector3();
-    return this.raycaster.ray.intersectPlane(this.plane, p)
-      ? { x: p.x, z: p.z }
-      : null;
-  }
-  hitChair(clientX, clientY) {
-    if (!this.chair) return false;
-    const r = this.canvas.getBoundingClientRect();
-    this.pointer.set(
-      ((clientX - r.left) / r.width) * 2 - 1,
-      (-(clientY - r.top) / r.height) * 2 + 1,
-    );
-    this.raycaster.setFromCamera(this.pointer, this.camera);
-    return this.raycaster.intersectObject(this.chair, true).length > 0;
-  }
   resize() {
     const r = this.canvas.getBoundingClientRect();
     this.width = Math.max(1, r.width);
@@ -448,33 +329,6 @@ export class GameView {
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
   }
-  updateOffice(dt) {
-    const g = this.game,
-      c = g.chair,
-      m = g.man;
-    this.chair.position.set(c.x, 0, c.z);
-    this.chair.rotation.y = c.yaw;
-    this.human.userData.update(g.points, m.mode === "sit" ? c.yaw : m.yaw);
-    for (const w of this.chair.userData.wheels)
-      w.rotation.x -= (Math.hypot(c.vx, c.vz) * dt) / 0.055;
-    const chase = g.started ? c.z : 0,
-      side = g.started ? c.x * 0.65 : 0;
-    V.set(side, 2.2, chase + 3.3);
-    LOOK.set(side * 0.5, 0.28, chase - 0.5);
-    if (!this.cameraReady) {
-      this.camera.position.copy(V);
-      this.look = LOOK.clone();
-      this.cameraReady = true;
-    } else {
-      this.camera.position.lerp(V, 1 - Math.exp(-dt * 5));
-      this.look.lerp(LOOK, 1 - Math.exp(-dt * 5));
-    }
-    this.camera.lookAt(this.look);
-    this.scene.fog.near = 8 + g.distance * 0.3;
-    this.scene.fog.far = 30 + g.distance * 1.15;
-    this.sun.position.set(c.x - 6, 12, c.z + 7);
-    this.sun.target.position.set(c.x, 0, c.z - 5);
-  }
   updateRoad(dt) {
     const g = this.game,
       c = g.car;
@@ -482,7 +336,7 @@ export class GameView {
     this.car.rotation.z = c.angle;
     for (const w of this.car.userData.wheels)
       w.mesh.rotation.z = c.wheelAngle[w.axle];
-    this.car.userData.chicken.userData.animate(
+    this.car.userData.driver.userData.animate(
       g.clock,
       g.phase === "fall" ? 1 : g.gap < 2 ? 0.5 : g.pull > 0.85 ? 0.4 : 0,
     );
@@ -606,8 +460,7 @@ export class GameView {
   render(dt) {
     if (this.dead) return;
     this.clock += dt;
-    if (this.kind === "curling") this.updateOffice(dt);
-    else this.updateRoad(dt);
+    this.updateRoad(dt);
     this.renderer.render(this.scene, this.camera);
     this.canvas.dataset.triangles = String(this.renderer.info.render.triangles);
     this.canvas.dataset.phase = this.game.phase;

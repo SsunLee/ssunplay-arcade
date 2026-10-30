@@ -56,7 +56,6 @@
 
 | 원본 관찰 | 신규 3D 구현 |
 |---|---|
-| [의자 컬링](reference-curling.png) | [의자·인체·사무실](preview-curling.png) |
 | [치킨 레이스](reference-drive.png) | [차량·도로](preview-stage-0.png) |
 
 [데스크톱 목록](preview-desktop.png), [자동차 정지 결과](preview-drive-result.png), [모바일 목록](preview-mobile.png), [모바일 게임](preview-mobile-drive.png).

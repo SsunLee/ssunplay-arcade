@@ -21,6 +21,6 @@ try {
   await share.click();await p.evaluate(()=>Object.defineProperty(navigator.clipboard,'writeText',{configurable:true,value:async()=>{throw new DOMException('denied','NotAllowedError')}}));await p.getByRole('button',{name:'링크 복사',exact:true}).click();assert.match(await p.locator('#share-feedback').innerText(),/자동 복사가 제한/);assert.equal(await p.locator('#share-url').inputValue(),base+'/game/beer/');await p.screenshot({path:`${out}/fallback-${width}x${height}.png`});
   checks.push(`${width}x${height}: layout, clipboard, X handoff, paused timer, Escape focus, denied clipboard`);console.log(checks.at(-1));await p.close();
  }
- for(const game of ['curling','drive']){const p=await ctx.newPage();await p.goto(base+'/game/'+game+'/');await p.getByRole('button',{name:'게임 공유',exact:true}).click();assert.equal(await p.locator('#share-url').inputValue(),base+'/game/'+game+'/');checks.push(game+' current game link');await p.close()}
+ for(const game of ['drive']){const p=await ctx.newPage();await p.goto(base+'/game/'+game+'/');await p.getByRole('button',{name:'게임 공유',exact:true}).click();assert.equal(await p.locator('#share-url').inputValue(),base+'/game/'+game+'/');checks.push(game+' current game link');await p.close()}
  assert.deepEqual(errors,[]);fs.writeFileSync(out+'/report.json',JSON.stringify({status:'passed',base,checks,errors},null,2));
 }finally{await browser?.close();server?.kill()}

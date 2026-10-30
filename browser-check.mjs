@@ -28,9 +28,10 @@ try {
   p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(base + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
   await p.locator("#preview-beer[data-renderer]").waitFor();
-  assert.equal(await p.locator(".game-card").count(), 3);
+  assert.equal(await p.locator(".game-card").count(), 4);
+  assert.equal(await p.locator('a[href="/game/curling/"]').count(), 0);
   await p.screenshot({ path: "dist/qa/home-v21.png", fullPage: true });
-  record("three-game-home");
+  record("four-game-home");
   await p.locator('a[href="/game/drive/"]').click();
   await phase(p, "ready");
   assert.equal(
@@ -50,28 +51,6 @@ try {
   await p.getByRole("button", { name: "다시 시작", exact: true }).click();
   await phase(p, "ready");
   record("drive-retry");
-  await p.goto(base + "/game/curling/", { waitUntil: "domcontentloaded" });
-  await phase(p, "ready");
-  const a = await p.screenshot();
-  await p.waitForTimeout(1800);
-  const b = await p.screenshot();
-  assert.equal(a.equals(b), false);
-  record("curling-autonomous-sway");
-  await p.locator("#result").waitFor({ state: "visible", timeout: 65000 });
-  assert.match(await p.locator("#result").innerText(), /늦었어요/);
-  await p.screenshot({ path: "dist/qa/curling-idle-collapse.png" });
-  record("curling-random-idle-collapse");
-  await p.getByRole("button", { name: "다시 도전 ↻", exact: true }).click();
-  await phase(p, "ready");
-  await p.locator("#game").focus();
-  await p.keyboard.down("Space");
-  await p.waitForTimeout(425);
-  await p.keyboard.up("Space");
-  await p
-    .locator("#stage-label")
-    .filter({ hasText: "2번째" })
-    .waitFor({ timeout: 25000 });
-  record("curling-catch-next-stage");
   await p.goto(base + "/game/beer/", { waitUntil: "domcontentloaded" });
   await phase(p, "ready");
   await p.getByRole("button", { name: "도움말", exact: true }).click();

@@ -3,17 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import {
   DriveGame,
-  CurlingGame,
   STAGES,
   VEHICLES,
   SURFACES,
-  CURL_DISTANCES,
   makeCar,
   makeRoad,
   launchCar,
   stepCar,
   frontOf,
-  flickVelocity,
 } from "./engine.js";
 const advance = (g, seconds) => {
   for (let i = 0; i < seconds * 120 && g.phase !== "result"; i++)
@@ -68,68 +65,6 @@ test("rigidbody can overhang without a false fall result", () => {
     }
   }
   assert.ok(found);
-});
-test("curling brief preparation, slow release rejection and pause", () => {
-  const g = new CurlingGame(42);
-  advance(g, 1);
-  assert.equal(g.man.mode, "stand");
-  assert.equal(g.release(0, -0.4), false);
-  assert.equal(g.phase, "ready");
-  g.release(0, -3.4);
-  g.pause();
-  const z = g.chair.z;
-  advance(g, 2);
-  assert.equal(g.chair.z, z);
-  g.resume();
-  assert.equal(g.phase, "roll");
-});
-test("a controlled knee catch seats the person and advances to 3m", () => {
-  const g = new CurlingGame(42);
-  g.man.x = 0;
-  g.man.yaw = 0;
-  g.release(0, -3.4);
-  let sat = false;
-  for (let i = 0; i < 1200 && g.stage === 0; i++) {
-    g.update(1 / 120);
-    sat ||= g.man.mode === "sit";
-  }
-  assert.ok(sat);
-  assert.equal(g.stage, 1);
-  assert.equal(g.distance, 3);
-  assert.equal(g.bestDistance, 2);
-});
-test("overspeed impact and a short miss both end as ragdoll failures", () => {
-  for (const v of [1.4, 10]) {
-    const g = new CurlingGame(42);
-    g.man.x = 0;
-    g.man.yaw = 0;
-    g.release(0, -v);
-    advance(g, 20);
-    assert.equal(g.phase, "result");
-    assert.equal(g.result.ok, false);
-    assert.ok(g.points.every((p) => p.every(Number.isFinite)));
-    assert.ok(g.points.every((p) => p[1] >= 0.05));
-  }
-});
-test("recent flick uses speed, direction and stale release rejection", () => {
-  const a = [
-    { t: 0, x: 100, y: 300, fx: 0, fz: 0 },
-    { t: 50, x: 100, y: 250, fx: 0, fz: -0.5 },
-  ];
-  assert.ok(
-    Math.abs(flickVelocity(a, 700, 51).speed - (50 / 0.05 / 700) * 2.6) < 1e-10,
-  );
-  assert.equal(flickVelocity(a, 700, 121), null);
-  assert.equal(flickVelocity([a[0]], 700, 1), null);
-});
-test("chair wall bounces and there is no invented 20-person progression cap", () => {
-  const g = new CurlingGame(42);
-  g.chair.x = 2.54;
-  g.release(5, -1);
-  g.update(0.1);
-  assert.ok(g.chair.vx < 0);
-  assert.ok(CURL_DISTANCES.includes(100));
-  assert.equal(CURL_DISTANCES[10], 21);
 });
 if (fs.existsSync("drive-reference-cases.json")) {
   const refs = JSON.parse(fs.readFileSync("drive-reference-cases.json"));

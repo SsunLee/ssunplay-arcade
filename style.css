@@ -565,12 +565,6 @@ footer button {
   margin-top: 8px;
   font-weight: 600;
 }
-.curling .gesture-guide {
-  bottom: 17%;
-}
-.curling .gesture-arrow {
-  transform: translateY(5px);
-}
 .gone {
   opacity: 0;
   pointer-events: none;
@@ -1072,9 +1066,6 @@ dialog a {
   .gesture-guide span {
     font-size: 10px;
   }
-  .curling .gesture-guide {
-    bottom: 18%;
-  }
   .bottom-bar {
     padding: 12px 13px;
     font-size: 9px;
@@ -1119,8 +1110,7 @@ dialog a {
   .title-overlay h1 {
     font-size: 45px;
   }
-  .gesture-guide,
-  .curling .gesture-guide {
+  .gesture-guide {
     bottom: 13%;
     left: 75%;
   }

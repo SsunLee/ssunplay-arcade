@@ -1,12 +1,9 @@
 import {
-  CurlingGame,
   DriveGame,
   BeerGame,
   BEER_ORDERS,
   STAGES,
-  CURL_DISTANCES,
   clamp,
-  flickVelocity,
 } from "./engine.js";
 import { GameView } from "./stage.js";
 import { BeerView } from "./beer.js";
@@ -27,7 +24,6 @@ let data = {
   version: 2,
   name: "플레이어",
   sound: true,
-  curling: 0,
   beer: 0,
   pasta: 0,
   dalgona: 0,
@@ -116,21 +112,15 @@ const inGame = (e) => e.target instanceof Element && e.target.closest(".game-she
 for (const type of ["selectstart", "contextmenu"]) document.addEventListener(type, (e) => inGame(e) && e.preventDefault());
 document.addEventListener("touchstart", (e) => inGame(e) && e.target instanceof HTMLCanvasElement && e.preventDefault(), { passive: false });
 function header(game) {
-  return `<header class="${game ? "game-header" : "site-header"}"><a href="/" class="brand" data-nav>${game ? homeIcon : '<span class="brand-mark">S.</span>'}<span>${game ? "쑨플레이" : "SSUNPLAY"}${!game ? "<small>조금 이상한 게임들</small>" : ""}</span></a>${game ? `<div class="bar-title">${game === "curling" ? "의자 컬링" : game === "beer" ? "맥주 잘 따르기" : game === "pasta" ? "파스타 만들기" : game === "dalgona" ? "달고나 뽑기" : "치킨 드라이브"}</div>` : ""}<nav><button data-action="records">내 기록</button><button data-action="help">${game ? "도움말" : "사이트 안내"}</button>${game ? '<button data-action="fullscreen" aria-label="전체 화면">⛶</button>' : ""}<button data-action="sound" aria-label="소리 켜기/끄기">${muted ? "♩ OFF" : "♫ ON"}</button>${languageControl()}</nav></header>`;
+  return `<header class="${game ? "game-header" : "site-header"}"><a href="/" class="brand" data-nav>${game ? homeIcon : '<span class="brand-mark">S.</span>'}<span>${game ? "쑨플레이" : "SSUNPLAY"}${!game ? "<small>조금 이상한 게임들</small>" : ""}</span></a>${game ? `<div class="bar-title">${game === "beer" ? "맥주 잘 따르기" : game === "pasta" ? "파스타 만들기" : game === "dalgona" ? "달고나 뽑기" : "치킨 드라이브"}</div>` : ""}<nav><button data-action="records">내 기록</button><button data-action="help">${game ? "도움말" : "사이트 안내"}</button>${game ? '<button data-action="fullscreen" aria-label="전체 화면">⛶</button>' : ""}<button data-action="sound" aria-label="소리 켜기/끄기">${muted ? "♩ OFF" : "♫ ON"}</button>${languageControl()}</nav></header>`;
 }
 function home() {
   clean();
   document.title = "쑨플레이 — 조금 이상한 3D 게임들";
-  app.innerHTML = `${header()}<main id="main" class="home"><div class="intro-line"><div><span class="eyebrow">작은 조작, 아슬아슬한 순간.</span><h1>조금 이상한 게임들</h1><p>설치 없이, 지금 바로 플레이하세요.</p></div><span class="stamp">JUST<br>ONE<br>MORE.</span></div><div class="news"><span>UPDATE</span><p>NEW 달고나 뽑기! 녹이고, 부풀리고, 살살 떼어 내기.</p><time>2026.10.29</time></div><section class="game-grid" aria-label="게임 목록"><a class="game-card" href="/game/curling/" data-nav><div class="card-visual"><canvas id="preview-curling" aria-label="3D 사무실과 주황색 의자"></canvas><span class="card-tag">한 번 더 하게 되는</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">01 / OFFICE</span><h2>의자 컬링</h2><p>쓰러지기 직전의 동료.<br>의자를 밀어서 구해주세요.</p><div class="card-bottom"><span>스와이프 · 거리 챌린지</span><strong>플레이 ↗</strong></div></div></a><a class="game-card" href="/game/drive/" data-nav><div class="card-visual"><canvas id="preview-drive" aria-label="3D 자동차와 바다 절벽"></canvas><span class="card-tag yellow">간담이 서늘한</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">02 / CHICKEN</span><h2>치킨 드라이브</h2><p>브레이크 없는 치킨의 도전.<br>절벽에 얼마나 가까이 갈 수 있을까요?</p><div class="card-bottom"><span>당겼다 놓기 · 5개 스테이지</span><strong>플레이 ↗</strong></div></div></a><a class="game-card" href="/game/beer/" data-nav><div class="card-visual beer-card"><canvas id="preview-beer" aria-label="3D 맥주 탭과 유리잔"></canvas><span class="card-tag yellow">NEW · 거품까지 맛있게</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">03 / TAPROOM</span><h2>맥주 잘 따르기</h2><p>기울이면 맥주, 세우면 거품.<br>세 손님의 완벽한 한 잔을 완성하세요.</p><div class="card-bottom"><span>누르고 따르기 · 잔 기울이기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card pasta-card" href="/game/pasta/" data-nav><div class="card-visual"><canvas id="preview-pasta" aria-label="파스타 만들기"></canvas><span class="card-tag">손맛 좋은 한 접시</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">04 / CUCINA</span><h2>파스타 만들기</h2><p>탁탁 썰고, 두 화구를 오가며, 출렁 토스.<br>세 단계로 완성하는 나만의 한 접시.</p><div class="card-bottom"><span>리듬 칼질 · 두 화구 멀티태스킹</span><strong>플레이 ↗</strong></div></div></a><a class="game-card dalgona-card" href="/game/dalgona/" data-nav><div class="card-visual"><canvas id="preview-dalgona" aria-label="달고나 뽑기"></canvas><span class="card-tag yellow">NEW · 숨죽이는 바늘 끝</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">05 / STREET</span><h2>달고나 뽑기</h2><p>연탄불에 녹이고, 소다로 부풀리고.<br>금 가기 전에 모양을 떼어 내세요.</p><div class="card-bottom"><span>만들기 · 바늘 뽑기</span><strong>플레이 ↗</strong></div></div></a></section><div class="home-record"><span>MY BEST</span><p>의자 컬링 <b>${data.curling || "—"}${data.curling ? "m" : ""}</b></p><p>해안 절벽 <b>${data.drive[0] != null ? fmt(data.drive[0]) + "m" : "—"}</b></p><p>맥주 잘 따르기 <b>${data.beer || "—"}${data.beer ? "점" : ""}</b></p><p>파스타 만들기 <b>${data.pasta || "—"}${data.pasta ? "점" : ""}</b></p><p>달고나 뽑기 <b>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</b></p><button data-action="records">기록 보기 ↗</button></div><section class="how"><h2>생각보다 쉽고,<br>생각보다 어렵습니다.</h2><p>마우스와 손가락 하나면 충분해요.<br>짧은 한 판을 즐기고 나의 최고 기록에 도전하세요.</p></section></main><footer><a href="/" class="footer-brand" data-nav>SSUNPLAY</a><p>Play a little. Try again.</p><button data-action="credits">제작 정보 · 참고 사이트</button><a href="https://github.com/SsunLee/ssunplay-arcade" target="_blank" rel="noreferrer">GitHub ↗</a></footer>`;
+  app.innerHTML = `${header()}<main id="main" class="home"><div class="intro-line"><div><span class="eyebrow">작은 조작, 아슬아슬한 순간.</span><h1>조금 이상한 게임들</h1><p>설치 없이, 지금 바로 플레이하세요.</p></div><span class="stamp">JUST<br>ONE<br>MORE.</span></div><div class="news"><span>UPDATE</span><p>NEW 달고나 뽑기! 녹이고, 부풀리고, 살살 떼어 내기.</p><time>2026.10.29</time></div><section class="game-grid" aria-label="게임 목록"><a class="game-card" href="/game/drive/" data-nav><div class="card-visual"><canvas id="preview-drive" aria-label="3D 티코와 바다 절벽"></canvas><span class="card-tag yellow">간담이 서늘한</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">01 / CHICKEN</span><h2>치킨 드라이브</h2><p>브레이크 없는 부장님의 티코.<br>절벽에 얼마나 가까이 갈 수 있을까요?</p><div class="card-bottom"><span>당겼다 놓기 · 5개 스테이지</span><strong>플레이 ↗</strong></div></div></a><a class="game-card" href="/game/beer/" data-nav><div class="card-visual beer-card"><canvas id="preview-beer" aria-label="3D 맥주 탭과 유리잔"></canvas><span class="card-tag yellow">NEW · 거품까지 맛있게</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">02 / TAPROOM</span><h2>맥주 잘 따르기</h2><p>기울이면 맥주, 세우면 거품.<br>세 손님의 완벽한 한 잔을 완성하세요.</p><div class="card-bottom"><span>누르고 따르기 · 잔 기울이기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card pasta-card" href="/game/pasta/" data-nav><div class="card-visual"><canvas id="preview-pasta" aria-label="파스타 만들기"></canvas><span class="card-tag">손맛 좋은 한 접시</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">03 / CUCINA</span><h2>파스타 만들기</h2><p>탁탁 썰고, 두 화구를 오가며, 출렁 토스.<br>세 단계로 완성하는 나만의 한 접시.</p><div class="card-bottom"><span>리듬 칼질 · 두 화구 멀티태스킹</span><strong>플레이 ↗</strong></div></div></a><a class="game-card dalgona-card" href="/game/dalgona/" data-nav><div class="card-visual"><canvas id="preview-dalgona" aria-label="달고나 뽑기"></canvas><span class="card-tag yellow">NEW · 숨죽이는 바늘 끝</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">04 / STREET</span><h2>달고나 뽑기</h2><p>연탄불에 녹이고, 소다로 부풀리고.<br>금 가기 전에 모양을 떼어 내세요.</p><div class="card-bottom"><span>만들기 · 바늘 뽑기</span><strong>플레이 ↗</strong></div></div></a></section><div class="home-record"><span>MY BEST</span><p>해안 절벽 <b>${data.drive[0] != null ? fmt(data.drive[0]) + "m" : "—"}</b></p><p>맥주 잘 따르기 <b>${data.beer || "—"}${data.beer ? "점" : ""}</b></p><p>파스타 만들기 <b>${data.pasta || "—"}${data.pasta ? "점" : ""}</b></p><p>달고나 뽑기 <b>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</b></p><button data-action="records">기록 보기 ↗</button></div><section class="how"><h2>생각보다 쉽고,<br>생각보다 어렵습니다.</h2><p>마우스와 손가락 하나면 충분해요.<br>짧은 한 판을 즐기고 나의 최고 기록에 도전하세요.</p></section></main><footer><a href="/" class="footer-brand" data-nav>SSUNPLAY</a><p>Play a little. Try again.</p><button data-action="credits">제작 정보 · 참고 사이트</button><a href="https://github.com/SsunLee/ssunplay-arcade" target="_blank" rel="noreferrer">GitHub ↗</a></footer>`;
   try {
-    const a = new CurlingGame(42),
-      b = new DriveGame();
-    a.preview = true;
-    a.pose();
-    views.push(
-      new GameView("curling", $("#preview-curling"), a, { preview: true }),
-      new GameView("drive", $("#preview-drive"), b, { preview: true }),
-    );
+    const b = new DriveGame();
+    views.push(new GameView("drive", $("#preview-drive"), b, { preview: true }));
     const beerPreview = new BeerGame(42);
     beerPreview.liquid = 0.63;
     beerPreview.foam = 0.17;
@@ -140,18 +130,16 @@ function home() {
     );
     const pastaPreview = new PastaGame(42);
     views.push(new PastaView($("#preview-pasta"), pastaPreview, { preview: true }));
-    views[3].render(0);
+    views[2].render(0);
     views.push(new DalgonaView($("#preview-dalgona"), new DalgonaGame(42), { preview: true }));
-    views[4].render(0);
+    views[3].render(0);
     let prev = performance.now();
     const tick = (t) => {
       if (t - prev > 100) {
         const dt = Math.min(0.1, (t - prev) / 1000);
         prev = t;
-        a.update(dt);
         b.clock += dt;
         views[0]?.render(dt);
-        views[1]?.render(dt);
       }
       raf = requestAnimationFrame(tick);
     };
@@ -164,14 +152,13 @@ function home() {
 function fmt(v) {
   return Math.abs(v) < 0.01 ? v.toFixed(3) : v.toFixed(2);
 }
-function mount(kind, stage = 0, { practice = false } = {}) {
+function mount(stage = 0) {
   clean();
   document.body.classList.add("playing");
-  const g = kind === "curling" ? new CurlingGame() : new DriveGame(stage);
-  if (kind === "curling" && stage) g.reset(stage);
-  document.title =
-    (kind === "curling" ? "의자 컬링" : "치킨 드라이브") + " | 쑨플레이";
-  app.innerHTML = `${header(kind)}<main id="main" class="game-shell ${kind}"><canvas id="game" tabindex="0" aria-label="${kind === "curling" ? "의자를 잡고 앞으로 빠르게 밀어 놓으세요" : "화면을 아래로 당긴 다음 놓아 출발하세요"}"></canvas><div class="hud"><div class="hud-left"><div class="hud-label" id="stage-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="hud-right">${kind === "drive" ? `<select id="stage-select" aria-label="스테이지">${STAGES.map((s, i) => `<option value="${i}" ${i === stage ? "selected" : ""}>${i + 1}. ${s.name}</option>`).join("")}</select>` : ""}<div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button><button data-action="share" class="game-share" aria-label="게임 공유" aria-haspopup="dialog" title="공유"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg></button></div></div></div><div id="title-overlay" class="title-overlay"><p class="game-kicker">${kind === "curling" ? "SAVE YOUR COWORKER" : "HOW CLOSE CAN YOU GO?"}</p><h1>${kind === "curling" ? "의자 컬링" : "치킨 드라이브"}</h1><p class="game-subtitle">${kind === "curling" ? "쓰러지는 동료에게 의자를 밀어주세요!" : "절벽 바로 앞, 멈출 수 있을까요?"}</p></div><div id="gesture-guide" class="gesture-guide"><div class="gesture-arrow">${kind === "curling" ? "↑" : "↓"}</div><b>${kind === "curling" ? "의자를 잡고 앞으로 슥!" : "아래로 당겼다가 놓으세요"}</b><span>${kind === "curling" ? "빠르게 밀수록 멀리 갑니다" : "한 번 출발하면 멈출 수 없어요"}</span></div><div id="game-status" class="game-status" role="status" aria-live="polite"></div><div id="result" class="result-overlay" hidden></div><div class="bottom-bar"><span>${practice ? "연습 모드 · 최고 기록에 반영되지 않습니다" : kind === "curling" ? "의자를 움직여 위치를 맞추고, 마지막 순간에 빠르게 미세요." : "힘 조절이 전부입니다. 낭떠러지에선 바퀴와 무게중심을 조심하세요."}</span><button data-action="help">조작 방법 ?</button></div></main>`;
+  const kind = "drive",
+    g = new DriveGame(stage);
+  document.title = "치킨 드라이브 | 쑨플레이";
+  app.innerHTML = `${header(kind)}<main id="main" class="game-shell ${kind}"><canvas id="game" tabindex="0" aria-label="화면을 아래로 당긴 다음 놓아 출발하세요"></canvas><div class="hud"><div class="hud-left"><div class="hud-label" id="stage-label"></div><div id="main-value" class="main-value"></div><div id="best-value" class="best-value"></div></div><div class="hud-right"><select id="stage-select" aria-label="스테이지">${STAGES.map((s, i) => `<option value="${i}" ${i === stage ? "selected" : ""}>${i + 1}. ${s.name}</option>`).join("")}</select><div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button><button data-action="share" class="game-share" aria-label="게임 공유" aria-haspopup="dialog" title="공유"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg></button></div></div></div><div id="title-overlay" class="title-overlay"><p class="game-kicker">HOW CLOSE CAN YOU GO?</p><h1>치킨 드라이브</h1><p class="game-subtitle">절벽 바로 앞, 멈출 수 있을까요?</p></div><div id="gesture-guide" class="gesture-guide"><div class="gesture-arrow">↓</div><b>아래로 당겼다가 놓으세요</b><span>한 번 출발하면 멈출 수 없어요</span></div><div id="game-status" class="game-status" role="status" aria-live="polite"></div><div id="result" class="result-overlay" hidden></div><div class="bottom-bar"><span>힘 조절이 전부입니다. 낭떠러지에선 바퀴와 무게중심을 조심하세요.</span><button data-action="help">조작 방법 ?</button></div></main>`;
   let view;
   try {
     view = new GameView(kind, $("#game"), g);
@@ -187,14 +174,11 @@ function mount(kind, stage = 0, { practice = false } = {}) {
     kind,
     g,
     view,
-    practice,
-    lastStage: g.stage,
     resultShown: false,
-    lastMode: g.man?.mode,
   };
   bindInput(active);
   $("#stage-select")?.addEventListener("change", (e) =>
-    mount("drive", +e.target.value),
+    mount(+e.target.value),
   );
   last = performance.now();
   frame = 0;
@@ -212,81 +196,42 @@ function mount(kind, stage = 0, { practice = false } = {}) {
 }
 function bindInput(a) {
   const c = $("#game"),
-    { kind, g, view } = a;
+    { g, view } = a;
   let pointer = null,
-    startY = 0,
-    samples = [],
-    offset = { x: 0, z: 0 };
-  const sample = (e) => {
-    const p = view.floorPoint(e.clientX, e.clientY);
-    if (!p) return;
-    const now = performance.now(),
-      t = Math.abs(e.timeStamp - now) < 10000 ? e.timeStamp : now;
-    samples.push({ x: e.clientX, y: e.clientY, fx: p.x, fz: p.z, t });
-    samples = samples.filter((x) => t - x.t < 110);
-    g.moveGrab(p.x + offset.x, p.z + offset.z);
-  };
+    startY = 0;
   c.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || !["ready", "aim"].includes(g.phase)) return;
-    if (kind === "curling" && !view.hitChair(e.clientX, e.clientY)) {
-      toast("주황색 의자를 잡아주세요.");
-      return;
-    }
     beep();
     pointer = e.pointerId;
     c.setPointerCapture(pointer);
-    if (kind === "drive") {
-      startY = e.clientY;
-      g.setPull(0);
-    } else {
-      const p = view.floorPoint(e.clientX, e.clientY);
-      if (!p) return;
-      offset = { x: g.chair.x - p.x, z: g.chair.z - p.z };
-      g.grab(g.chair.x, g.chair.z);
-      samples = [];
-      sample(e);
-    }
+    startY = e.clientY;
+    g.setPull(0);
     c.focus();
     e.preventDefault();
   });
   c.addEventListener("pointermove", (e) => {
     if (pointer !== e.pointerId) return;
-    if (kind === "drive")
-      g.setPull(
-        (e.clientY - startY) /
-          Math.max(
-            220,
-            Math.min(
-              view.height * 0.5 * (g.config.reach || 1),
-              view.height * 0.72,
-            ),
+    g.setPull(
+      (e.clientY - startY) /
+        Math.max(
+          220,
+          Math.min(
+            view.height * 0.5 * (g.config.reach || 1),
+            view.height * 0.72,
           ),
-      );
-    else {
-      const events = e.getCoalescedEvents?.();
-      for (const p of events?.length ? events : [e]) sample(p);
-    }
+        ),
+    );
     e.preventDefault();
   });
   const end = (e) => {
     if (pointer !== e.pointerId) return;
     pointer = null;
     if (e.type === "pointercancel") {
-      if (kind === "drive") {
-        g.setPull(0);
-        g.phase = "ready";
-      } else {
-        g.chair.held = false;
-        g.phase = "ready";
-      }
+      g.setPull(0);
+      g.phase = "ready";
       return;
     }
-    if (kind === "drive") g.launch();
-    else {
-      const v = flickVelocity(samples, view.height, performance.now());
-      g.release(v?.vx || 0, v?.vz || 0);
-    }
-    samples = [];
+    g.launch();
     e.preventDefault();
   };
   c.addEventListener("pointerup", end);
@@ -300,35 +245,9 @@ function bindInput(a) {
       retry();
       e.preventDefault();
     }
-    if (
-      kind === "drive" &&
-      e.code === "Space" &&
-      !e.repeat &&
-      ["ready", "aim"].includes(g.phase)
-    ) {
+    if (e.code === "Space" && !e.repeat && ["ready", "aim"].includes(g.phase)) {
       a.keyStart = performance.now();
       g.setPull(0.04);
-      e.preventDefault();
-    }
-    if (
-      kind === "curling" &&
-      e.code === "Space" &&
-      !e.repeat &&
-      g.phase === "ready"
-    ) {
-      a.keyStart = performance.now();
-      e.preventDefault();
-    }
-    if (
-      kind === "curling" &&
-      g.phase === "ready" &&
-      ["ArrowLeft", "ArrowRight"].includes(e.key)
-    ) {
-      g.chair.x = clamp(
-        g.chair.x + (e.key === "ArrowLeft" ? -0.06 : 0.06),
-        -1,
-        1,
-      );
       e.preventDefault();
     }
   });
@@ -336,8 +255,7 @@ function bindInput(a) {
     if (e.code === "Space" && a.keyStart) {
       const hold = (performance.now() - a.keyStart) / 1000;
       a.keyStart = 0;
-      if (kind === "drive") g.launch(clamp(hold / 2, 0.04, 1));
-      else g.release(0, -clamp(hold * 8, 1.2, 17));
+      g.launch(clamp(hold / 2, 0.04, 1));
       e.preventDefault();
     }
   });
@@ -350,114 +268,65 @@ function updateHUD() {
     updateBeerHUD();
     return;
   }
-  if (a.keyStart && kind === "drive")
-    g.setPull(clamp((performance.now() - a.keyStart) / 2000, 0.04, 1));
-  const ready = ["ready", "aim"].includes(g.phase),
-    rolling = ["roll", "run", "judge", "fall", "success"].includes(g.phase);
-  $("#title-overlay").classList.toggle(
-    "gone",
-    !ready || (kind === "curling" && g.man.mode !== "stand"),
-  );
+  if (a.keyStart) g.setPull(clamp((performance.now() - a.keyStart) / 2000, 0.04, 1));
+  const ready = ["ready", "aim"].includes(g.phase);
+  $("#title-overlay").classList.toggle("gone", !ready);
   $("#gesture-guide").classList.toggle("gone", !ready || g.phase === "aim");
   $("#game").classList.toggle("grabbing", g.phase === "aim");
-
-  if (kind === "drive") {
-    $("#stage-label").textContent = STAGES[g.stage].name;
-    $("#main-value").innerHTML = `${fmt(g.gap)}<small>m</small>`;
-    $("#best-value").textContent =
-      "BEST " +
-      (data.drive[g.stage] != null ? fmt(data.drive[g.stage]) + "m" : "—") +
-      (g.phase === "run"
-        ? " · " + (Math.hypot(g.car.vx, g.car.vy) * 3.6).toFixed(0) + " km/h"
-        : "");
-  } else {
-    $("#stage-label").textContent =
-      `${g.stage + 1}번째 동료${a.practice ? " · 연습" : ""}`;
-    $("#main-value").innerHTML = `${g.distance}<small>m</small>`;
-    $("#best-value").textContent =
-      "BEST " + (data.curling ? data.curling + "m" : "—");
-    if (a.lastMode !== "sit" && g.man.mode === "sit") {
-      beep("win");
-      if (!a.practice) {
-        data.curling = Math.max(data.curling, g.distance);
-        save();
-      }
-      g.bestDistance = Math.max(g.bestDistance, g.distance);
-    }
-    a.lastMode = g.man.mode;
-    if (a.lastStage !== g.stage) {
-      a.lastStage = g.stage;
-      a.lastMode = "stand";
-      viewRefresh();
-      return;
-    }
-  }
+  $("#stage-label").textContent = STAGES[g.stage].name;
+  $("#main-value").innerHTML = `${fmt(g.gap)}<small>m</small>`;
+  $("#best-value").textContent =
+    "BEST " +
+    (data.drive[g.stage] != null ? fmt(data.drive[g.stage]) + "m" : "—") +
+    (g.phase === "run"
+      ? " · " + (Math.hypot(g.car.vx, g.car.vy) * 3.6).toFixed(0) + " km/h"
+      : "");
   const status =
     g.phase === "paused"
       ? "일시 정지"
       : g.phase === "judge"
         ? "잠깐… 버틸 수 있을까요?"
         : g.phase === "fall"
-          ? kind === "drive"
-            ? "으아아아악!"
-            : g.feedback
-          : kind === "curling" && g.man.mode === "sit"
-            ? "나이스 캐치!"
-            : g.phase === "run" && g.slow < 0.6
-              ? "숨을 참으세요…"
-              : "";
+          ? "으아아아악!"
+          : g.phase === "run" && g.slow < 0.6
+            ? "숨을 참으세요…"
+            : "";
   $("#game-status").textContent = status;
   $("#game-status").classList.toggle("visible", !!status);
   if (g.phase === "result" && !a.resultShown) showResult();
 }
-function viewRefresh() {
-  const a = active,
-    oldCanvas = $("#game"),
-    next = oldCanvas.cloneNode();
-  a.view.destroy();
-  oldCanvas.replaceWith(next);
-  a.view = new GameView(a.kind, next, a.g);
-  views = [a.view];
-  bindInput(a);
-}
 function showResult() {
   const a = active,
-    { g, kind } = a,
+    { g } = a,
     r = g.result;
   a.resultShown = true;
-  const success = kind === "drive" ? !r.fell : r.ok;
-  beep(success ? "win" : "fail");
+  beep(!r.fell ? "win" : "fail");
   let newBest = false;
-  if (!a.practice) {
-    if (
-      kind === "drive" &&
-      !r.fell &&
-      (data.drive[g.stage] == null || r.gap < data.drive[g.stage])
-    ) {
-      data.drive[g.stage] = r.gap;
-      newBest = true;
-    }
-    data.history.unshift({ ...r, at: Date.now(), name: data.name });
-    data.history = data.history.slice(0, 60);
-    save();
+  if (
+    !r.fell &&
+    (data.drive[g.stage] == null || r.gap < data.drive[g.stage])
+  ) {
+    data.drive[g.stage] = r.gap;
+    newBest = true;
   }
+  data.history.unshift({ ...r, at: Date.now(), name: data.name });
+  data.history = data.history.slice(0, 60);
+  save();
   const el = $("#result");
   el.hidden = false;
-  const near = kind === "drive" && !r.fell && r.gap < 1.5;
-  el.innerHTML = `<section class="result-card"><span class="eyebrow">${newBest ? "NEW PERSONAL BEST" : r.fell ? "CHICKEN DOWN" : near ? "ON THE EDGE" : "ONE MORE TRY"}</span><h2>${kind === "curling" ? (r.ok ? "모두 구했어요!" : "앗, 늦었어요!") : r.fell ? "치킨, 추락!" : near ? "간발의 차이!" : "안전하게 정지!"}</h2><div class="result-value">${kind === "curling" ? g.bestDistance || 0 : r.fell ? "풍덩!" : fmt(r.gap)}<small>${kind === "drive" && r.fell ? "" : "m"}</small></div><p>${kind === "curling" ? esc(r.reason) : r.fell ? "조금만 덜 당겼더라면…" : r.gap < 0 ? "앞부분이 절벽 밖으로 나왔지만, 버텼습니다!" : "절벽까지 남은 거리. 더 가까이 도전해 보세요."}</p><div class="result-actions"><button class="primary" data-action="retry">다시 도전 ↻</button>${kind === "curling" && g.stage > 0 ? '<button class="secondary" data-action="practice">이 거리부터 연습</button>' : ""}<button class="secondary" data-action="share">기록 공유 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>`;
+  const near = !r.fell && r.gap < 1.5;
+  el.innerHTML = `<section class="result-card"><span class="eyebrow">${newBest ? "NEW PERSONAL BEST" : r.fell ? "BOSS DOWN" : near ? "ON THE EDGE" : "ONE MORE TRY"}</span><h2>${r.fell ? "부장님, 추락!" : near ? "간발의 차이!" : "안전하게 정지!"}</h2><div class="result-value">${r.fell ? "풍덩!" : fmt(r.gap)}<small>${r.fell ? "" : "m"}</small></div><p>${r.fell ? "조금만 덜 당겼더라면…" : r.gap < 0 ? "앞부분이 절벽 밖으로 나왔지만, 버텼습니다!" : "절벽까지 남은 거리. 더 가까이 도전해 보세요."}</p><div class="result-actions"><button class="primary" data-action="retry">다시 도전 ↻</button><button class="secondary" data-action="share">기록 공유 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>`;
 }
 function retry() {
   if (active?.kind === "pasta") { mountPasta(); return; }
   if (active?.kind === "dalgona") { mountDalgona(); return; }
   if (!active) return;
-  const { kind, g, practice } = active;
+  const { kind, g } = active;
   if (kind === "beer") {
     mountBeer();
     return;
   }
-  mount(kind, kind === "drive" ? g.stage : practice ? g.stage : 0, {
-    practice,
-  });
+  mount(g.stage);
 }
 function togglePause() {
   if (!active) return;
@@ -484,7 +353,7 @@ function openDialog(html) {
 }
 function records() {
   openDialog(
-    `<span class="eyebrow">MY RECORDS</span><h2>나의 최고 기록</h2><p class="muted">이 브라우저에 저장되는 개인 기록입니다.</p><label class="name-label">플레이어 이름<input id="player-name" value="${esc(data.name)}" maxlength="20"></label><button class="mini" data-action="name">이름 저장</button><div class="record-row"><span>맥주 잘 따르기</span><strong>${data.beer || "—"}${data.beer ? "점" : ""}</strong></div><div class="record-row"><span>파스타 만들기</span><strong>${data.pasta || "—"}${data.pasta ? "점" : ""}</strong></div><div class="record-row"><span>달고나 뽑기</span><strong>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</strong></div><div class="record-row"><span>의자 컬링</span><strong>${data.curling || "—"}${data.curling ? "m" : ""}</strong></div>${STAGES.map((s, i) => `<div class="record-row"><span>${s.name}</span><strong>${data.drive[i] != null ? fmt(data.drive[i]) + "m" : "—"}</strong></div>`).join("")}<p class="muted small">자동차는 남은 거리가 작을수록 좋은 기록입니다.<br>추락한 기록과 연습 기록은 최고 기록에서 제외합니다.</p><div class="dialog-actions"><button class="secondary" data-action="export">기록 내보내기</button><label class="secondary file-label">가져오기<input type="file" id="import" accept="application/json,.json"></label></div>`,
+    `<span class="eyebrow">MY RECORDS</span><h2>나의 최고 기록</h2><p class="muted">이 브라우저에 저장되는 개인 기록입니다.</p><label class="name-label">플레이어 이름<input id="player-name" value="${esc(data.name)}" maxlength="20"></label><button class="mini" data-action="name">이름 저장</button><div class="record-row"><span>맥주 잘 따르기</span><strong>${data.beer || "—"}${data.beer ? "점" : ""}</strong></div><div class="record-row"><span>파스타 만들기</span><strong>${data.pasta || "—"}${data.pasta ? "점" : ""}</strong></div><div class="record-row"><span>달고나 뽑기</span><strong>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</strong></div>${STAGES.map((s, i) => `<div class="record-row"><span>${s.name}</span><strong>${data.drive[i] != null ? fmt(data.drive[i]) + "m" : "—"}</strong></div>`).join("")}<p class="muted small">자동차는 남은 거리가 작을수록 좋은 기록입니다.<br>추락한 기록은 최고 기록에서 제외합니다.</p><div class="dialog-actions"><button class="secondary" data-action="export">기록 내보내기</button><label class="secondary file-label">가져오기<input type="file" id="import" accept="application/json,.json"></label></div>`,
   );
   $("#import").addEventListener("change", async (e) => {
     try {
@@ -495,8 +364,6 @@ function records() {
         v.version !== 2 ||
         (v.beer != null &&
           (!Number.isInteger(v.beer) || v.beer < 0 || v.beer > 100)) ||
-        !Number.isFinite(v.curling) ||
-        (!CURL_DISTANCES.includes(v.curling) && v.curling !== 0) ||
         !v.drive ||
         Array.isArray(v.drive) ||
         Object.entries(v.drive).some(
@@ -510,7 +377,6 @@ function records() {
         )
       )
         throw Error();
-      data.curling = Math.max(data.curling, v.curling);
       data.beer = Math.max(data.beer || 0, v.beer || 0);
       for (const [k, x] of Object.entries(v.drive))
         data.drive[k] = data.drive[k] == null ? x : Math.min(x, data.drive[k]);
@@ -524,7 +390,7 @@ function records() {
 }
 function help() {
   const k = active?.kind;
-  if(!k){openDialog('<span class="eyebrow">THREE LITTLE GAMES</span><h2>쑨플레이 이용 안내</h2><h3>의자 컬링</h3><p>혼자 비틀거리는 동료에게 의자를 밀어주세요. 동료가 주저앉기 전에 위치와 속도를 맞추세요.</p><h3>치킨 드라이브</h3><p>화면을 아래로 당겼다 놓아 출발합니다. 힘 표시와 브레이크 없이 절벽 가까이 멈추세요.</p><h3>맥주 잘 따르기</h3><p>누르는 동안 따르고, 잔의 기울기로 거품을 조절하세요. 세 손님의 주문을 완성하면 평균 점수가 기록됩니다.</p><p class="muted small">각 게임의 도움말에서 자세한 조작을 확인할 수 있습니다. 개인 기록은 브라우저에 저장되며 내보내기·가져오기를 지원합니다.</p>');return;}
+  if(!k){openDialog('<span class="eyebrow">THREE LITTLE GAMES</span><h2>쑨플레이 이용 안내</h2><h3>치킨 드라이브</h3><p>화면을 아래로 당겼다 놓아 출발합니다. 힘 표시와 브레이크 없이 절벽 가까이 멈추세요.</p><h3>맥주 잘 따르기</h3><p>누르는 동안 따르고, 잔의 기울기로 거품을 조절하세요. 세 손님의 주문을 완성하면 평균 점수가 기록됩니다.</p><p class="muted small">각 게임의 도움말에서 자세한 조작을 확인할 수 있습니다. 개인 기록은 브라우저에 저장되며 내보내기·가져오기를 지원합니다.</p>');return;}
   if (k === "pasta") {
     openDialog('<span class="eyebrow">PASTA STUDIO</span><h2>파스타 만들기</h2><p>소스를 고르면 세 단계 요리가 시작됩니다. 단계마다 조작이 달라요.</p><h3>1. 재료 썰기</h3><p>재료가 칼 아래로 지나갑니다. 노란 점선이 칼날에 닿는 순간 탭하세요. 두께가 고를수록 점수가 높고, PERFECT를 이으면 콤보가 쌓입니다.</p><h3>2. 두 화구 동시에</h3><p>왼쪽 팬과 오른쪽 냄비가 한꺼번에 끓어요. 팬을 누르고 있으면 불이 세지고, 떼면 약해집니다. 팬은 천천히 반응하니 온도 바늘을 미리 초록 구간에 맞추세요. 그사이 냄비 거품이 차오르면 팬에서 손을 떼고 냄비를 톡 쳐 주세요. 면 막대가 알 덴테 구간에 들어오면 냄비에서 팬으로 끌거나 건지기를 누르세요.</p><h3>3. 만테카레</h3><p>면이 팬으로 쏟아지면 소스와 휘감아요. 위로 끌어올렸다 놓으면 면이 출렁 튀어 오릅니다. 끌어올린 길이가 힘이에요. 노란 링 높이에 맞춰 세 번! 끄는 동안 좌우로 흔들면 팬이 돌아요.</p><h3>오늘의 손님</h3><p>손님마다 원하는 소스와 부탁이 하나씩 있어요. 주문한 소스로 만들고 부탁까지 들어주면 보너스 점수와 팁을 받아요.</p><h3>피버와 플람베</h3><p>PERFECT를 다섯 번 이으면 칼이 빛나는 피버! 팬에 와인이 들어가는 순간 팬을 꾹 누르고 있으면 불꽃이 솟는 플람베가 됩니다.</p><p>키보드: Space로 썰기·팬 불 올리기·토스 힘 모으기, S로 냄비 치기, Enter로 시작·건지기, Esc로 일시 정지.</p>');
     return;
@@ -538,7 +404,7 @@ function help() {
     return;
   }
   openDialog(
-    `<span class="eyebrow">HOW TO PLAY</span><h2>${k === "curling" ? "의자 컬링" : k === "drive" ? "치킨 드라이브" : "쑨플레이에 오신 걸 환영해요"}</h2>${!k || k === "curling" ? "<h3>의자 컬링</h3><p>동료가 비틀거리다 무작위로 주저앉습니다. 주황색 의자를 잡고 앞으로 빠르게 밀어 놓으세요. 마지막 순간의 스와이프 속도가 의자의 속도가 됩니다. 좌우로 움직여 동료와 위치도 맞출 수 있어요.</p><p>너무 빠르게 부딪히면 동료가 넘어집니다. 의자가 골반 아래 도착했을 때 속도가 줄어들어야 안전하게 앉을 수 있어요. 성공하면 다음 동료가 더 멀리 등장합니다.</p>" : ""}${!k || k === "drive" ? "<h3>치킨 드라이브</h3><p>화면을 아래로 당겨 힘을 정하고 손을 놓아 출발하세요. 멀리 당길수록 강한 힘으로 출발합니다. 출발 후에는 브레이크가 없습니다.</p><p>절벽 가까이 멈출수록 좋은 기록! 앞부분이 절벽 밖으로 나와도 무게중심이 버티면 성공입니다. 차종과 노면이 다른 5개 스테이지에 도전하세요.</p>" : ""}<h3>키보드</h3><p>${k === "curling" ? "← →로 의자 위치를 정하고, Space를 눌렀다 놓으면 발사합니다. 누른 시간으로 힘을 정합니다." : "Space를 길게 누르면 힘이 커집니다. 손을 떼면 출발합니다."}<br>R 다시 시작 · Esc 일시 정지</p><p class="muted small">기록은 브라우저에 저장됩니다. 다른 기기로 옮기려면 내 기록에서 파일을 내보내 주세요.</p>`,
+    `<span class="eyebrow">HOW TO PLAY</span><h2>치킨 드라이브</h2><p>운전석엔 부장님, 차는 각진 티코. 부장님의 퇴근길을 절벽 끝에서 멈춰 주세요.</p><p>화면을 아래로 당겨 힘을 정하고 손을 놓아 출발하세요. 멀리 당길수록 강한 힘으로 출발합니다. 출발 후에는 브레이크가 없습니다.</p><p>절벽 가까이 멈출수록 좋은 기록! 앞부분이 절벽 밖으로 나와도 무게중심이 버티면 성공입니다. 차종과 노면이 다른 5개 스테이지에 도전하세요.</p><h3>키보드</h3><p>Space를 길게 누르면 힘이 커집니다. 손을 떼면 출발합니다.<br>R 다시 시작 · Esc 일시 정지</p><p class="muted small">기록은 브라우저에 저장됩니다. 다른 기기로 옮기려면 내 기록에서 파일을 내보내 주세요.</p>`,
   );
 }
 function share(boast = false) {
@@ -548,7 +414,7 @@ function share(boast = false) {
   const summary = boast && a.kind === "beer" ? beerShareSummary(a.g) : null;
   const text = t(summary ? summary.text :
     !r
-      ? `${{ beer: "맥주 잘 따르기", curling: "의자 컬링", drive: "치킨 드라이브", pasta: "파스타 만들기", dalgona: "달고나 뽑기" }[a.kind]} — 쑨플레이에서 한 판 도전해 보세요!`
+      ? `${{ beer: "맥주 잘 따르기", drive: "치킨 드라이브", pasta: "파스타 만들기", dalgona: "달고나 뽑기" }[a.kind]} — 쑨플레이에서 한 판 도전해 보세요!`
       : a.kind === "pasta"
       ? `${a.g.recipe.name} 파스타 완성! ${r.value}점\n칼질 ${r.chopScore} · 불 조절 ${r.heatScore} · 면 익힘 ${r.noodleScore} · 토스 ${r.tossScore}\nPERFECT ${r.perfects}/${r.slices} · COMBO ${r.maxCombo}`
       : a.kind === "dalgona"
@@ -556,11 +422,9 @@ function share(boast = false) {
 온전함 ${r.integrity} · 금 ${r.cracks} · ${r.time}초`
       : a.kind === "beer"
       ? `맥주 잘 따르기 ${a.g.result?.value || 0}점! 나만의 완벽한 한 잔에 도전해 보세요.`
-      : a.kind === "curling"
-        ? `의자 컬링 ${a.g.bestDistance || 0}m! 동료를 구해보세요.`
-        : r?.fell
-          ? "치킨 드라이브에서 절벽으로 날아갔어요…"
-          : `치킨 드라이브 ${STAGES[a.g.stage].name}, 절벽까지 ${fmt(a.g.gap)}m!`);
+      : r?.fell
+        ? "치킨 드라이브에서 부장님이 절벽으로 날아갔어요…"
+        : `치킨 드라이브 ${STAGES[a.g.stage].name}, 절벽까지 ${fmt(a.g.gap)}m!`);
   const url = location.origin + location.pathname;
   const intent = new URL("https://x.com/intent/tweet");
   intent.searchParams.set("text", text);
@@ -607,8 +471,6 @@ document.addEventListener("click", async (e) => {
     $("#result").hidden = true;
     $("#game").focus();
   }
-  if (a === "practice" && active)
-    mount("curling", active.g.stage, { practice: true });
   if (a === "pause") togglePause();
   if (a === "sound") {
     muted = !muted;
@@ -671,8 +533,7 @@ function route() {
     mountBeer();
     return;
   }
-  if (/^\/game\/(curling|drive)\/?$/.test(p))
-    mount(p.includes("curling") ? "curling" : "drive");
+  if (/^\/game\/drive\/?$/.test(p)) mount();
   else home();
 }
 initI18n();

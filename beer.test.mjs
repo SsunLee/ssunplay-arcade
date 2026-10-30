@@ -1,35 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BeerGame, CurlingGame } from "./engine.js";
+import { BeerGame } from "./engine.js";
 const advance = (g, s) => {
   for (let i = 0; i < s * 120; i++) g.update(1 / 120);
 };
-test("curling sways while waiting and eventually collapses without a release", () => {
-  const g = new CurlingGame(42);
-  const start = g.points.map((p) => [...p]);
-  advance(g, 2);
-  assert.equal(g.man.mode, "stand");
-  assert.ok(g.points.some((p, i) => Math.abs(p[0] - start[i][0]) > 0.03));
-  advance(g, 25);
-  assert.equal(g.phase, "result");
-  assert.equal(g.result.ok, false);
-  assert.equal(g.chair.released, false);
-});
-test("idle collapse time varies across seeds, pause freezes it", () => {
-  const seeds = [1, 2, 99, 520, 2026].map((x) => new CurlingGame(x));
-  assert.ok(new Set(seeds.map((g) => g.man.idleCollapseAt)).size > 3);
-  const g = seeds[0];
-  g.update(0.25);
-  g.pause();
-  const p = g.points.map((x) => [...x]),
-    time = g.time;
-  advance(g, 30);
-  assert.deepEqual(g.points, p);
-  assert.equal(g.time, time);
-  g.resume();
-  advance(g, 25);
-  assert.equal(g.phase, "result");
-});
 test("tap is closed initially and does not start order timer", () => {
   const g = new BeerGame(42);
   advance(g, 25);
