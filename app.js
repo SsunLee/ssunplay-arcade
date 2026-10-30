@@ -14,6 +14,10 @@ import { PastaController } from "./pasta-ui.js";
 import { DalgonaGame } from "./dalgona-engine.js";
 import { DalgonaView } from "./dalgona-view.js";
 import { DalgonaController } from "./dalgona-ui.js";
+import { SubwayGame } from "./subway-engine.js";
+import { SubwayView } from "./subway-view.js";
+import { SubwayController, SUBWAY_HELP } from "./subway-ui.js";
+import { subwayShareText } from "./subway-engine.js";
 import { t, languageControl, initI18n, translatePage } from "./i18n.js";
 const $ = (s) => document.querySelector(s),
   app = $("#app"),
@@ -27,6 +31,7 @@ let data = {
   beer: 0,
   pasta: 0,
   dalgona: 0,
+  subway: 0,
   drive: {},
   history: [],
   practice: 0,
@@ -112,12 +117,12 @@ const inGame = (e) => e.target instanceof Element && e.target.closest(".game-she
 for (const type of ["selectstart", "contextmenu"]) document.addEventListener(type, (e) => inGame(e) && e.preventDefault());
 document.addEventListener("touchstart", (e) => inGame(e) && e.target instanceof HTMLCanvasElement && e.preventDefault(), { passive: false });
 function header(game) {
-  return `<header class="${game ? "game-header" : "site-header"}"><a href="/" class="brand" data-nav>${game ? homeIcon : '<span class="brand-mark">S.</span>'}<span>${game ? "쑨플레이" : "SSUNPLAY"}${!game ? "<small>조금 이상한 게임들</small>" : ""}</span></a>${game ? `<div class="bar-title">${game === "beer" ? "맥주 잘 따르기" : game === "pasta" ? "파스타 만들기" : game === "dalgona" ? "달고나 뽑기" : "부장님의 티코레이싱"}</div>` : ""}<nav><button data-action="records">내 기록</button><button data-action="help">${game ? "도움말" : "사이트 안내"}</button>${game ? '<button data-action="fullscreen" aria-label="전체 화면">⛶</button>' : ""}<button data-action="sound" aria-label="소리 켜기/끄기">${muted ? "♩ OFF" : "♫ ON"}</button>${languageControl()}</nav></header>`;
+  return `<header class="${game ? "game-header" : "site-header"}"><a href="/" class="brand" data-nav>${game ? homeIcon : '<span class="brand-mark">S.</span>'}<span>${game ? "쑨플레이" : "SSUNPLAY"}${!game ? "<small>조금 이상한 게임들</small>" : ""}</span></a>${game ? `<div class="bar-title">${game === "subway" ? "지하철 뛰어타기" : game === "beer" ? "맥주 잘 따르기" : game === "pasta" ? "파스타 만들기" : game === "dalgona" ? "달고나 뽑기" : "부장님의 티코레이싱"}</div>` : ""}<nav><button data-action="records">내 기록</button><button data-action="help">${game ? "도움말" : "사이트 안내"}</button>${game ? '<button data-action="fullscreen" aria-label="전체 화면">⛶</button>' : ""}<button data-action="sound" aria-label="소리 켜기/끄기">${muted ? "♩ OFF" : "♫ ON"}</button>${languageControl()}</nav></header>`;
 }
 function home() {
   clean();
   document.title = "쑨플레이 — 조금 이상한 3D 게임들";
-  app.innerHTML = `${header()}<main id="main" class="home"><div class="intro-line"><div><span class="eyebrow">작은 조작, 아슬아슬한 순간.</span><h1>조금 이상한 게임들</h1><p>설치 없이, 지금 바로 플레이하세요.</p></div><span class="stamp">JUST<br>ONE<br>MORE.</span></div><div class="news"><span>UPDATE</span><p>NEW 달고나 뽑기! 녹이고, 부풀리고, 살살 떼어 내기.</p><time>2026.10.29</time></div><section class="game-grid" aria-label="게임 목록"><a class="game-card" href="/game/drive/" data-nav><div class="card-visual"><canvas id="preview-drive" aria-label="3D 티코와 바다 절벽"></canvas><span class="card-tag yellow">간담이 서늘한</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">01 / TICO</span><h2>부장님의 티코레이싱</h2><p>브레이크 없는 부장님의 티코.<br>절벽에 얼마나 가까이 갈 수 있을까요?</p><div class="card-bottom"><span>당겼다 놓기 · 5개 스테이지</span><strong>플레이 ↗</strong></div></div></a><a class="game-card" href="/game/beer/" data-nav><div class="card-visual beer-card"><canvas id="preview-beer" aria-label="3D 맥주 탭과 유리잔"></canvas><span class="card-tag yellow">NEW · 거품까지 맛있게</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">02 / TAPROOM</span><h2>맥주 잘 따르기</h2><p>기울이면 맥주, 세우면 거품.<br>세 손님의 완벽한 한 잔을 완성하세요.</p><div class="card-bottom"><span>누르고 따르기 · 잔 기울이기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card pasta-card" href="/game/pasta/" data-nav><div class="card-visual"><canvas id="preview-pasta" aria-label="파스타 만들기"></canvas><span class="card-tag">손맛 좋은 한 접시</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">03 / CUCINA</span><h2>파스타 만들기</h2><p>탁탁 썰고, 두 화구를 오가며, 출렁 토스.<br>세 단계로 완성하는 나만의 한 접시.</p><div class="card-bottom"><span>리듬 칼질 · 두 화구 멀티태스킹</span><strong>플레이 ↗</strong></div></div></a><a class="game-card dalgona-card" href="/game/dalgona/" data-nav><div class="card-visual"><canvas id="preview-dalgona" aria-label="달고나 뽑기"></canvas><span class="card-tag yellow">NEW · 숨죽이는 바늘 끝</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">04 / STREET</span><h2>달고나 뽑기</h2><p>연탄불에 녹이고, 소다로 부풀리고.<br>금 가기 전에 모양을 떼어 내세요.</p><div class="card-bottom"><span>만들기 · 바늘 뽑기</span><strong>플레이 ↗</strong></div></div></a></section><div class="home-record"><span>MY BEST</span><p>해안 절벽 <b>${data.drive[0] != null ? fmt(data.drive[0]) + "m" : "—"}</b></p><p>맥주 잘 따르기 <b>${data.beer || "—"}${data.beer ? "점" : ""}</b></p><p>파스타 만들기 <b>${data.pasta || "—"}${data.pasta ? "점" : ""}</b></p><p>달고나 뽑기 <b>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</b></p><button data-action="records">기록 보기 ↗</button></div><section class="how"><h2>생각보다 쉽고,<br>생각보다 어렵습니다.</h2><p>마우스와 손가락 하나면 충분해요.<br>짧은 한 판을 즐기고 나의 최고 기록에 도전하세요.</p></section></main><footer><a href="/" class="footer-brand" data-nav>SSUNPLAY</a><p>Play a little. Try again.</p><button data-action="credits">제작 정보 · 참고 사이트</button><a href="https://github.com/SsunLee/ssunplay-arcade" target="_blank" rel="noreferrer">GitHub ↗</a></footer>`;
+  app.innerHTML = `${header()}<main id="main" class="home"><div class="intro-line"><div><span class="eyebrow">작은 조작, 아슬아슬한 순간.</span><h1>조금 이상한 게임들</h1><p>설치 없이, 지금 바로 플레이하세요.</p></div><span class="stamp">JUST<br>ONE<br>MORE.</span></div><div class="news"><span>UPDATE</span><div class="news-lines"><p>NEW 지하철 뛰어타기! 문 닫히기 직전, 부장님의 출근 질주.</p><p>NEW 달고나 뽑기! 녹이고, 부풀리고, 살살 떼어 내기.</p></div><time>2026.10.31</time></div><section class="game-grid" aria-label="게임 목록"><a class="game-card" href="/game/drive/" data-nav><div class="card-visual"><canvas id="preview-drive" aria-label="3D 티코와 바다 절벽"></canvas><span class="card-tag yellow">간담이 서늘한</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">01 / TICO</span><h2>부장님의 티코레이싱</h2><p>브레이크 없는 부장님의 티코.<br>절벽에 얼마나 가까이 갈 수 있을까요?</p><div class="card-bottom"><span>당겼다 놓기 · 5개 스테이지</span><strong>플레이 ↗</strong></div></div></a><a class="game-card" href="/game/beer/" data-nav><div class="card-visual beer-card"><canvas id="preview-beer" aria-label="3D 맥주 탭과 유리잔"></canvas><span class="card-tag yellow">NEW · 거품까지 맛있게</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">02 / TAPROOM</span><h2>맥주 잘 따르기</h2><p>기울이면 맥주, 세우면 거품.<br>세 손님의 완벽한 한 잔을 완성하세요.</p><div class="card-bottom"><span>누르고 따르기 · 잔 기울이기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card pasta-card" href="/game/pasta/" data-nav><div class="card-visual"><canvas id="preview-pasta" aria-label="파스타 만들기"></canvas><span class="card-tag">손맛 좋은 한 접시</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">03 / CUCINA</span><h2>파스타 만들기</h2><p>탁탁 썰고, 두 화구를 오가며, 출렁 토스.<br>세 단계로 완성하는 나만의 한 접시.</p><div class="card-bottom"><span>리듬 칼질 · 두 화구 멀티태스킹</span><strong>플레이 ↗</strong></div></div></a><a class="game-card dalgona-card" href="/game/dalgona/" data-nav><div class="card-visual"><canvas id="preview-dalgona" aria-label="달고나 뽑기"></canvas><span class="card-tag yellow">NEW · 숨죽이는 바늘 끝</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">04 / STREET</span><h2>달고나 뽑기</h2><p>연탄불에 녹이고, 소다로 부풀리고.<br>금 가기 전에 모양을 떼어 내세요.</p><div class="card-bottom"><span>만들기 · 바늘 뽑기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card subway-card" href="/game/subway/" data-nav><div class="card-visual"><canvas id="preview-subway" aria-label="지하철 뛰어타기"></canvas><span class="card-tag yellow">NEW · 출근길의 마지막 기회</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">05 / METRO</span><h2>지하철 뛰어타기</h2><p>문 닫히기 직전, 부장님의 출근 질주.</p><div class="card-bottom"><span>좌우 이동 · 점프 · 아슬아슬 탑승</span><strong>플레이 ↗</strong></div></div></a></section><div class="home-record"><span>MY BEST</span><p>해안 절벽 <b>${data.drive[0] != null ? fmt(data.drive[0]) + "m" : "—"}</b></p><p>맥주 잘 따르기 <b>${data.beer || "—"}${data.beer ? "점" : ""}</b></p><p>파스타 만들기 <b>${data.pasta || "—"}${data.pasta ? "점" : ""}</b></p><p>달고나 뽑기 <b>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</b></p><p>지하철 뛰어타기 <b>${data.subway || "—"}${data.subway ? "점" : ""}</b></p><button data-action="records">기록 보기 ↗</button></div><section class="how"><h2>생각보다 쉽고,<br>생각보다 어렵습니다.</h2><p>마우스와 손가락 하나면 충분해요.<br>짧은 한 판을 즐기고 나의 최고 기록에 도전하세요.</p></section></main><footer><a href="/" class="footer-brand" data-nav>SSUNPLAY</a><p>Play a little. Try again.</p><button data-action="credits">제작 정보 · 참고 사이트</button><a href="https://github.com/SsunLee/ssunplay-arcade" target="_blank" rel="noreferrer">GitHub ↗</a></footer>`;
   try {
     const b = new DriveGame();
     views.push(new GameView("drive", $("#preview-drive"), b, { preview: true }));
@@ -133,6 +138,8 @@ function home() {
     views[2].render(0);
     views.push(new DalgonaView($("#preview-dalgona"), new DalgonaGame(42), { preview: true }));
     views[3].render(0);
+    views.push(new SubwayView($("#preview-subway"), new SubwayGame(42), { preview:true }));
+    views[4].render(0);
     let prev = performance.now();
     const tick = (t) => {
       if (t - prev > 100) {
@@ -318,6 +325,7 @@ function showResult() {
   el.innerHTML = `<section class="result-card"><span class="eyebrow">${newBest ? "NEW PERSONAL BEST" : r.fell ? "BOSS DOWN" : near ? "ON THE EDGE" : "ONE MORE TRY"}</span><h2>${r.fell ? "부장님, 추락!" : near ? "간발의 차이!" : "안전하게 정지!"}</h2><div class="result-value">${r.fell ? "풍덩!" : fmt(r.gap)}<small>${r.fell ? "" : "m"}</small></div><p>${r.fell ? "조금만 덜 당겼더라면…" : r.gap < 0 ? "앞부분이 절벽 밖으로 나왔지만, 버텼습니다!" : "절벽까지 남은 거리. 더 가까이 도전해 보세요."}</p><div class="result-actions"><button class="primary" data-action="retry">다시 도전 ↻</button><button class="secondary" data-action="share">기록 공유 ↗</button></div><a href="/" data-nav class="text-link">게임 목록으로</a></section>`;
 }
 function retry() {
+  if (active?.kind === "subway") { mountSubway(); return; }
   if (active?.kind === "pasta") { mountPasta(); return; }
   if (active?.kind === "dalgona") { mountDalgona(); return; }
   if (!active) return;
@@ -353,7 +361,7 @@ function openDialog(html) {
 }
 function records() {
   openDialog(
-    `<span class="eyebrow">MY RECORDS</span><h2>나의 최고 기록</h2><p class="muted">이 브라우저에 저장되는 개인 기록입니다.</p><label class="name-label">플레이어 이름<input id="player-name" value="${esc(data.name)}" maxlength="20"></label><button class="mini" data-action="name">이름 저장</button><div class="record-row"><span>맥주 잘 따르기</span><strong>${data.beer || "—"}${data.beer ? "점" : ""}</strong></div><div class="record-row"><span>파스타 만들기</span><strong>${data.pasta || "—"}${data.pasta ? "점" : ""}</strong></div><div class="record-row"><span>달고나 뽑기</span><strong>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</strong></div>${STAGES.map((s, i) => `<div class="record-row"><span>${s.name}</span><strong>${data.drive[i] != null ? fmt(data.drive[i]) + "m" : "—"}</strong></div>`).join("")}<p class="muted small">자동차는 남은 거리가 작을수록 좋은 기록입니다.<br>추락한 기록은 최고 기록에서 제외합니다.</p><div class="dialog-actions"><button class="secondary" data-action="export">기록 내보내기</button><label class="secondary file-label">가져오기<input type="file" id="import" accept="application/json,.json"></label></div>`,
+    `<span class="eyebrow">MY RECORDS</span><h2>나의 최고 기록</h2><p class="muted">이 브라우저에 저장되는 개인 기록입니다.</p><label class="name-label">플레이어 이름<input id="player-name" value="${esc(data.name)}" maxlength="20"></label><button class="mini" data-action="name">이름 저장</button><div class="record-row"><span>맥주 잘 따르기</span><strong>${data.beer || "—"}${data.beer ? "점" : ""}</strong></div><div class="record-row"><span>파스타 만들기</span><strong>${data.pasta || "—"}${data.pasta ? "점" : ""}</strong></div><div class="record-row"><span>달고나 뽑기</span><strong>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</strong></div><div class="record-row"><span>지하철 뛰어타기</span><strong>${data.subway || "—"}${data.subway ? "점" : ""}</strong></div>${STAGES.map((s, i) => `<div class="record-row"><span>${s.name}</span><strong>${data.drive[i] != null ? fmt(data.drive[i]) + "m" : "—"}</strong></div>`).join("")}<p class="muted small">자동차는 남은 거리가 작을수록 좋은 기록입니다.<br>추락한 기록은 최고 기록에서 제외합니다.</p><div class="dialog-actions"><button class="secondary" data-action="export">기록 내보내기</button><label class="secondary file-label">가져오기<input type="file" id="import" accept="application/json,.json"></label></div>`,
   );
   $("#import").addEventListener("change", async (e) => {
     try {
@@ -378,6 +386,7 @@ function records() {
       )
         throw Error();
       data.beer = Math.max(data.beer || 0, v.beer || 0);
+      if (Number.isFinite(v.subway) && v.subway >= 0) data.subway = Math.max(data.subway || 0, v.subway);
       for (const [k, x] of Object.entries(v.drive))
         data.drive[k] = data.drive[k] == null ? x : Math.min(x, data.drive[k]);
       save();
@@ -391,6 +400,7 @@ function records() {
 function help() {
   const k = active?.kind;
   if(!k){openDialog('<span class="eyebrow">THREE LITTLE GAMES</span><h2>쑨플레이 이용 안내</h2><h3>부장님의 티코레이싱</h3><p>화면을 아래로 당겼다 놓아 출발합니다. 힘 표시와 브레이크 없이 절벽 가까이 멈추세요.</p><h3>맥주 잘 따르기</h3><p>누르는 동안 따르고, 잔의 기울기로 거품을 조절하세요. 세 손님의 주문을 완성하면 평균 점수가 기록됩니다.</p><p class="muted small">각 게임의 도움말에서 자세한 조작을 확인할 수 있습니다. 개인 기록은 브라우저에 저장되며 내보내기·가져오기를 지원합니다.</p>');return;}
+  if (k === "subway") { openDialog(`<h2>지하철 뛰어타기</h2><p>${SUBWAY_HELP}</p>`); return; }
   if (k === "pasta") {
     openDialog('<span class="eyebrow">PASTA STUDIO</span><h2>파스타 만들기</h2><p>소스를 고르면 세 단계 요리가 시작됩니다. 단계마다 조작이 달라요.</p><h3>1. 재료 썰기</h3><p>재료가 칼 아래로 지나갑니다. 노란 점선이 칼날에 닿는 순간 탭하세요. 두께가 고를수록 점수가 높고, PERFECT를 이으면 콤보가 쌓입니다.</p><h3>2. 두 화구 동시에</h3><p>왼쪽 팬과 오른쪽 냄비가 한꺼번에 끓어요. 팬을 누르고 있으면 불이 세지고, 떼면 약해집니다. 팬은 천천히 반응하니 온도 바늘을 미리 초록 구간에 맞추세요. 그사이 냄비 거품이 차오르면 팬에서 손을 떼고 냄비를 톡 쳐 주세요. 면 막대가 알 덴테 구간에 들어오면 냄비에서 팬으로 끌거나 건지기를 누르세요.</p><h3>3. 만테카레</h3><p>면이 팬으로 쏟아지면 소스와 휘감아요. 위로 끌어올렸다 놓으면 면이 출렁 튀어 오릅니다. 끌어올린 길이가 힘이에요. 노란 링 높이에 맞춰 세 번! 끄는 동안 좌우로 흔들면 팬이 돌아요.</p><h3>오늘의 손님</h3><p>손님마다 원하는 소스와 부탁이 하나씩 있어요. 주문한 소스로 만들고 부탁까지 들어주면 보너스 점수와 팁을 받아요.</p><h3>피버와 플람베</h3><p>PERFECT를 다섯 번 이으면 칼이 빛나는 피버! 팬에 와인이 들어가는 순간 팬을 꾹 누르고 있으면 불꽃이 솟는 플람베가 됩니다.</p><p>키보드: Space로 썰기·팬 불 올리기·토스 힘 모으기, S로 냄비 치기, Enter로 시작·건지기, Esc로 일시 정지.</p>');
     return;
@@ -412,7 +422,7 @@ function share(boast = false) {
   if (!a) return;
   const r = a.g.result;
   const summary = boast && a.kind === "beer" ? beerShareSummary(a.g) : null;
-  const text = t(summary ? summary.text :
+  const text = t(a.kind === "subway" ? subwayShareText(r) : summary ? summary.text :
     !r
       ? `${{ beer: "맥주 잘 따르기", drive: "부장님의 티코레이싱", pasta: "파스타 만들기", dalgona: "달고나 뽑기" }[a.kind]} — 쑨플레이에서 한 판 도전해 보세요!`
       : a.kind === "pasta"
@@ -527,6 +537,8 @@ document.addEventListener("visibilitychange", () => {
 });
 function route() {
   const p = location.pathname;
+  updateRouteMeta(p);
+  if (/^\/game\/subway\/?$/.test(p)) { mountSubway(); return; }
   if (/^\/game\/pasta\/?$/.test(p)) { mountPasta(); return; }
   if (/^\/game\/dalgona\/?$/.test(p)) { mountDalgona(); return; }
   if (/^\/game\/beer\/?$/.test(p)) {
@@ -825,3 +837,34 @@ function beerHelp() {
     '<span class="eyebrow">HOW TO POUR</span><h2>맥주 잘 따르기</h2><p>위쪽 주문 카드의 맥주·거품 비율을 보고 세 손님의 한 잔을 완성하세요.</p><h3>따르기와 기울기</h3><p>맥주 화면을 누르는 동안 맥주가 나옵니다. 손을 떼면 멈춥니다. 누른 채 왼쪽으로 움직이면 잔이 기울고, 오른쪽으로 움직이면 세워집니다.</p><p>기울여 따르면 거품이 적게 생깁니다. 마지막에는 잔을 세워 부드러운 거품을 올려보세요. 거품은 기다리면 조금씩 가라앉습니다. 잔을 너무 기울이거나 오래 따르면 넘칩니다.</p><h3>주문 마무리</h3><p>원하는 모양이 되면 <b>서빙</b>를 누르세요. 맥주 양·거품·넘친 양으로 점수를 매깁니다. 세 손님의 평균이 최종 기록입니다. 시간은 처음 따르기 시작할 때부터 흐릅니다.</p><p class="muted small">키보드: Space 누르고 따르기 · ← 기울이기 · → 세우기 · Enter 제출 · R 다시 도전 · Esc 일시 정지</p>',
   );
 }
+
+function mountSubway() {
+  clean();
+  document.body.classList.add("playing");
+  try {
+    const controller = new SubwayController({ app, header:header("subway"), modal, sound:() => !muted, onResult:result => {
+      data.subway = Math.max(data.subway || 0, result.value);
+      data.history.unshift({ ...result, at:Date.now(), name:data.name });
+      data.history = data.history.slice(0,60); save();
+    } });
+    active = { kind:"subway", g:controller.g, controller }; views = [controller];
+  } catch (e) {
+    console.error(e);
+    app.querySelector('.subway-viewport').innerHTML = '<div class="pasta-error"><h2>3D 화면을 시작하지 못했습니다</h2><p>브라우저의 하드웨어 가속을 켜고 다시 접속해 주세요.</p><a href="/" data-nav>게임 목록으로</a></div>';
+  }
+  translatePage();
+}
+
+function updateRouteMeta(path = location.pathname) {
+  const subway = /^\/game\/subway\/?$/.test(path);
+  const title = subway ? t("지하철 뛰어타기") + " | SSUNPLAY" : "SSUNPLAY · " + t("조금 이상한 게임들");
+  const description = subway ? t("문 닫히기 직전, 부장님의 출근 질주.") : t("설치 없이, 지금 바로 플레이하세요.");
+  if (subway) document.title = title;
+  for (const [key, value] of Object.entries({ description, "og:title":title, "og:description":description, "og:type":"website", "og:url":location.origin + path, "og:image":location.origin + "/social.svg" })) {
+    const attr = key.startsWith("og:") ? "property" : "name";
+    let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+    if (!el) { el = document.createElement("meta"); el.setAttribute(attr,key); document.head.append(el); }
+    el.content = value;
+  }
+}
+window.addEventListener("languagechange", () => updateRouteMeta());
