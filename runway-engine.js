@@ -14,6 +14,7 @@ export const CALLSIGN = "SSUN 123";
 const VREF_TO = 178, VREF_LDG = 140, MAX_THRUST = 3.6, CLIMB_DONE = 300 * FT, EYE = 4;
 const PITCH_RATE = 3, PITCH_LAG = 5; // deg/s at full deflection; the pitch rate follows the stick with a 0.2 s lag
 const ASSIST_BANK = 5, ASSIST_LEVEL = 0.35; // assist: max bank it commands, and how gently it rolls
+export const RETARD_FT = 25; // assist: below this height on landing the levers go to idle
 // hold-to-accelerate button: drag radius and deadzone in px, thrust ramp while held and the ease back on release (per s)
 export const HOLD = { radius: 80, dead: 10, ramp: 0.8, back: 1 };
 export const HOLD_LABELS = { up: "기수↑", down: "기수↓", left: "◀ 기울기", right: "기울기 ▶" };
@@ -414,6 +415,11 @@ export class RunwayGame {
     // assist: a gentle auto-throttle toward VAPP above 50 ft, and a hint when the speed is off
     this.assistInfo.thr = ft0 > 50 && Math.abs(kt0 - VAPP) > 6 ? Math.sign(VAPP - kt0) : 0;
     if (this.assist && !this.input.throttle && !this.boost && this.thrustBack == null && ft0 > 50) this.throttle = clamp(this.throttle + clamp((VAPP - kt0) * 0.01, -0.06, 0.06) * dt, 0, 1);
+    // assist: RETARD below 25 ft, so the levers reach idle in the flare without a keyboard
+    if (this.assist && !this.input.throttle && !this.boost && ft0 < RETARD_FT) {
+      this.thrustBack = null;
+      this.throttle = Math.max(0, this.throttle - HOLD.back * dt);
+    }
     // assist: above 60 ft, nudge the descent onto the glideslope; the flare is left to the pilot
     this.pitchControl(dt, 1, ft0 > 60 ? this.vsAssist(-a.v * Math.tan(RWY.gs * DEG) - this.gsDots * 1.2) : null);
     const bank0 = a.bank, manualRoll = Math.abs(this.input.roll) > 0.02 || !this.assist;
@@ -434,7 +440,7 @@ export class RunwayGame {
     const alpha = this.fly(dt, VREF_LDG);
     const ft = a.h / FT, kt = a.v / KT;
     for (const c of [400, 300, 200, 100, 50, 40, 30, 20, 10]) if (ft <= c && ft > c - 30) this.callout("r" + c, String(c));
-    if (ft < 25 && this.throttle > 0.05) this.callout("retard", "RETARD");
+    if (ft < RETARD_FT && this.throttle > 0.05) this.callout("retard", "RETARD");
     if (ft < 1000 && this.fpm < -1300 && ft > 30) this.emit("warn", { id: "sink", text: "SINK RATE" });
     if (ft > 50 && ft < 1000 && this.gsDots < -1.3) this.emit("warn", { id: "gs", text: "GLIDESLOPE" });
     if (alpha > 17) return this.endLanding({ crashed: true, reason: "stall" });

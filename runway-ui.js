@@ -3,15 +3,15 @@ import { RunwayView, renderLiveryShots } from "./runway-view.js";
 
 const shareIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg>';
 const HINT = {
-  throttle: "추력을 끝까지 올리세요 (Shift · THR + · 가속 버튼)",
+  throttle: "추력을 끝까지 올리세요 (Shift · 추력 레버 누르고 있기)",
   wait: "속도가 붙고 있어요… VR까지 기다리세요",
   rotate: "로테이트! 기수를 드세요 (S · ↓ · 핸들을 아래로)",
   climb: "기수 15° 유지, 300피트까지 상승",
   tail: "기수를 너무 들면 꼬리가 닿아요!",
   path: "PAPI 흰색 2개 · 빨간색 2개를 유지하세요",
   line: "기울여서 중심선에 맞추세요",
-  slow: "속도가 느려요 · 추력을 올리세요 (Shift · THR +)",
-  fast: "속도가 빨라요 · 추력을 줄이세요 (Ctrl · THR −)",
+  slow: "속도가 느려요 · 추력을 올리세요 (Shift · 추력 레버 누르기)",
+  fast: "속도가 빨라요 · 추력을 줄이세요 (Ctrl · 추력 레버 놓기)",
   flare: "추력을 줄이고 살짝 기수를 드세요 · 플레어!",
   roll: "착륙! 감속 중…",
   paused: "일시 정지",
@@ -29,6 +29,14 @@ const TIPS = {
   hard: "50피트 아래에서 추력을 줄이고 기수를 살짝 들어 강하율을 줄이세요.",
   goaround: "400피트 아래에서는 안정된 접근이 필요해요. 활공각과 속도를 지키세요.",
 };
+// Thrust lever quadrant drawn in code: two T-handle levers slide up their slots from IDLE to TOGA with the throttle.
+const TQ_IDLE = 92, TQ_TRAVEL = 68, TQ_DETENTS = [["IDLE", 0], ["CL", 0.6], ["FLX", 0.85], ["TOGA", 1]];
+const TQ_LEVER = (x, n) => `<rect class="rw-tq-stem" x="${x - 2.5}" y="2" width="5" height="24" rx="1.5"/><rect class="rw-tq-grip" x="${x - 12}" y="-6" width="24" height="12" rx="4"/><rect class="rw-tq-shine" x="${x - 9}" y="-4.2" width="18" height="2.2" rx="1.1"/><text class="rw-tq-num" x="${x}" y="4.4">${n}</text>`;
+const TQ_SVG = `<svg viewBox="0 0 100 112" aria-hidden="true"><rect class="rw-tq-ped" x="1" y="1" width="98" height="110" rx="12"/>
+${TQ_DETENTS.map(([label, t]) => { const y = TQ_IDLE - t * TQ_TRAVEL; return `<path class="rw-tq-tick${t === 1 ? " toga" : ""}" d="M27 ${y}H89"/><text class="rw-tq-label" x="26" y="${y + 2.6}">${label}</text>`; }).join("")}
+<rect class="rw-tq-slot" x="36.5" y="${TQ_IDLE - TQ_TRAVEL - 4}" width="7" height="${TQ_TRAVEL + 8}" rx="3.5"/><rect class="rw-tq-slot" x="61.5" y="${TQ_IDLE - TQ_TRAVEL - 4}" width="7" height="${TQ_TRAVEL + 8}" rx="3.5"/>
+<rect class="rw-tq-rail" x="84" y="${TQ_IDLE - TQ_TRAVEL}" width="4" height="${TQ_TRAVEL}" rx="2"/><rect id="rw-tq-fill" class="rw-tq-fill" x="84" y="${TQ_IDLE - TQ_TRAVEL}" width="4" height="${TQ_TRAVEL}" rx="2"/>
+<g id="rw-tq-levers" transform="translate(0 ${TQ_IDLE})">${TQ_LEVER(40, 1)}${TQ_LEVER(65, 2)}</g></svg>`;
 // Control yoke drawn in code: the wheel turns with roll, slides with pitch; the dot plots both.
 const YOKE_SVG = `<svg viewBox="-60 -48 120 96" aria-hidden="true">
 <path class="rw-yk-grid" d="M-52 0H52M0-40V40"/>
@@ -111,10 +119,10 @@ export class RunwayController {
     this.cache = {};
     this.abort = new AbortController();
     this.keys = new Set();
-    this.hold = { pitch: 0, roll: 0, throttle: 0 };
     this.drag = null;
     this.yoke = null; // the on-screen yoke being dragged
     this.yokeShown = { pitch: 0, roll: 0 };
+    this.leverShown = 0; // eased throttle for the lever quadrant
     this.boost = null; // the hold-to-accelerate button being held: { id, x, y, stick }
     this.tilt = null;
     this.sound = new Sound(sound);
@@ -135,9 +143,9 @@ export class RunwayController {
 <div id="rw-stick" class="rw-stick" hidden aria-hidden="true"><i></i></div>
 <div id="rw-intro" class="rw-intro"></div>
 <div id="rw-livery" class="rw-livery" hidden></div>
-<div class="rw-pad" aria-label="조종 버튼"><div class="rw-thr"><button data-hold="throttle:1" aria-label="추력 올리기">THR +</button><button data-hold="throttle:-1" aria-label="추력 줄이기">THR −</button></div>
-<div id="rw-boost" class="rw-boost" role="button" aria-label="누르고 있으면 가속 · 끌어서 조종 (아래로 끌면 기수 들기)"><span class="rw-boost-ring"><i id="rw-boost-knob" class="rw-boost-knob"></i><b id="rw-boost-arrow" class="rw-boost-arrow"></b></span><span class="rw-boost-text">누르고 가속</span><small id="rw-boost-dir" class="rw-boost-dir" aria-hidden="true"></small></div>
-<div class="rw-yoke"><button data-hold="pitch:-1" class="up" aria-label="기수 내리기">▲</button><button data-hold="roll:-1" class="left" aria-label="왼쪽으로 기울이기">◀</button><div id="rw-wheel" class="rw-wheel" role="img" aria-label="조종 핸들: 위아래로 끌면 기수, 좌우로 끌면 기울기">${YOKE_SVG}</div><button data-hold="roll:1" class="right" aria-label="오른쪽으로 기울이기">▶</button><button data-hold="pitch:1" class="down" aria-label="기수 들기">▼</button></div></div>
+<div class="rw-pad" aria-label="조종 버튼">
+<div id="rw-boost" class="rw-boost" role="button" aria-label="추력 레버: 누르고 있으면 가속 · 끌어서 조종 (아래로 끌면 기수 들기)">${TQ_SVG}<i id="rw-boost-knob" class="rw-boost-knob"></i><b id="rw-boost-arrow" class="rw-boost-arrow"></b><span class="rw-boost-text">누르고 가속</span><small id="rw-boost-dir" class="rw-boost-dir" aria-hidden="true"></small></div>
+<div class="rw-yoke"><div id="rw-wheel" class="rw-wheel" role="img" aria-label="조종 핸들: 위아래로 끌면 기수, 좌우로 끌면 기울기">${YOKE_SVG}</div></div></div>
 <div id="result" class="result-overlay" hidden></div>
 </main>`;
     this.shell = app.querySelector(".runway");
@@ -159,6 +167,7 @@ export class RunwayController {
         this.view.render(this.g.phase === "paused" ? 0 : dt);
         this.updateHUD();
         this.drawYoke(dt);
+        this.drawLevers(dt);
       }
       this.sound.engine(this.g.throttle, !modal.open && !["paused", "result"].includes(this.g.phase));
       this.raf = requestAnimationFrame(frame);
@@ -191,29 +200,6 @@ export class RunwayController {
       if (a === "livery") this.openLivery();
       if (a === "pick") this.pickLivery(b.dataset.livery);
     }, opt);
-    // hold-to-fly buttons: several can be held at once with multitouch
-    const held = new Map();
-    const release = (e) => {
-      const h = held.get(e.pointerId);
-      if (!h) return;
-      held.delete(e.pointerId);
-      h.el.classList.remove("on");
-      this.hold[h.axis] = [...held.values()].filter((x) => x.axis === h.axis).reduce((s, x) => s + x.dir, 0);
-    };
-    this.shell.querySelectorAll("[data-hold]").forEach((el) => {
-      const [axis, dir] = el.dataset.hold.split(":");
-      el.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        this.sound.ensure();
-        el.setPointerCapture(e.pointerId);
-        held.set(e.pointerId, { axis, dir: +dir, el });
-        el.classList.add("on");
-        this.hold[axis] = [...held.values()].filter((x) => x.axis === axis).reduce((s, x) => s + x.dir, 0);
-        if (g.phase === "ready") this.start();
-      }, opt);
-      for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) el.addEventListener(t, release, opt);
-      el.addEventListener("contextmenu", (e) => e.preventDefault(), opt);
-    });
     // drag anywhere on the scene like a virtual stick: down = pull back (nose up)
     const stick = this.$("rw-stick");
     c.addEventListener("pointerdown", (e) => {
@@ -268,6 +254,7 @@ export class RunwayController {
     };
     for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) wheel.addEventListener(t, yokeEnd, opt);
     wheel.addEventListener("contextmenu", (e) => e.preventDefault(), opt);
+    wheel.addEventListener("touchmove", (e) => e.preventDefault(), { ...opt, passive: false });
     // hold-to-accelerate: thrust ramps up while pressed; dragging while held flies like the yoke (down = nose up)
     const boost = this.$("rw-boost");
     boost.addEventListener("pointerdown", (e) => {
@@ -358,13 +345,24 @@ export class RunwayController {
     el.classList.toggle("dragging", !!label);
   }
   applyInput() {
-    const k = this.keys, h = this.hold, d = this.drag, y = this.yoke, t = this.tilt?.on ? this.tilt : null, b = this.boost?.stick;
-    const pitch = (k.has("pu") ? 1 : 0) - (k.has("pd") ? 1 : 0) + h.pitch + (d ? d.dy : 0) + (y ? y.dy : 0) + (b ? b.pitch : 0) + (t ? t.pitch : 0),
-      roll = (k.has("rr") ? 1 : 0) - (k.has("rl") ? 1 : 0) + h.roll + (d ? d.dx : 0) + (y ? y.dx : 0) + (b ? b.roll : 0) + (t ? t.roll : 0),
-      thr = (k.has("tu") ? 1 : 0) - (k.has("td") ? 1 : 0) + h.throttle;
+    const k = this.keys, d = this.drag, y = this.yoke, t = this.tilt?.on ? this.tilt : null, b = this.boost?.stick;
+    const pitch = (k.has("pu") ? 1 : 0) - (k.has("pd") ? 1 : 0) + (d ? d.dy : 0) + (y ? y.dy : 0) + (b ? b.pitch : 0) + (t ? t.pitch : 0),
+      roll = (k.has("rr") ? 1 : 0) - (k.has("rl") ? 1 : 0) + (d ? d.dx : 0) + (y ? y.dx : 0) + (b ? b.roll : 0) + (t ? t.roll : 0),
+      thr = (k.has("tu") ? 1 : 0) - (k.has("td") ? 1 : 0);
     this.g.setInput(pitch, roll, thr);
   }
-  /** The yoke mirrors every input source (keys, buttons, drag, hold button, tilt) and eases back to centre. */
+  /** The thrust levers glide toward the current throttle (IDLE at the bottom, TOGA at the top). */
+  drawLevers(dt) {
+    this.leverShown += (this.g.throttle - this.leverShown) * (1 - Math.exp(-dt * 14));
+    const y = (TQ_IDLE - this.leverShown * TQ_TRAVEL).toFixed(2);
+    if (this.cache.levers === y) return;
+    this.cache.levers = y;
+    this.$("rw-tq-levers").setAttribute("transform", `translate(0 ${y})`);
+    const fill = this.$("rw-tq-fill");
+    fill.setAttribute("y", y);
+    fill.setAttribute("height", (TQ_IDLE - y).toFixed(2));
+  }
+  /** The yoke mirrors every input source (keys, drag, thrust levers, tilt) and eases back to centre. */
   drawYoke(dt) {
     const inp = this.g.input, s = this.yokeShown, k = 1 - Math.exp(-dt * 16);
     s.pitch += (inp.pitch - s.pitch) * k;

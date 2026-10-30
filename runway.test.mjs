@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, MAX_CROSS, SINK_GRADES, KT, FT, GRADES, FAILURES,
-  HOLD, HOLD_LABELS, holdStick, holdLabel, releaseThrottle, LIVERIES, DEFAULT_LIVERY, LIVERY_KEY, getLivery,
+  HOLD, HOLD_LABELS, RETARD_FT, holdStick, holdLabel, releaseThrottle, LIVERIES, DEFAULT_LIVERY, LIVERY_KEY, getLivery,
   landingGrade, scoreLanding, scoreTakeoff, totalScore, papiLights, windComponents, formatWind, glideslopeDots, localizerDots,
 } from "./runway-engine.js";
 
@@ -421,6 +421,28 @@ test("on approach the hold button overrides the auto-throttle and hands back the
   g.setInput(0, 0, -1);
   run(g, 1 / 120);
   assert.equal(g.thrustBack, null);
+});
+
+test("assist: below RETARD height the levers go to idle without throttle input, unless the pilot holds them", () => {
+  const flare = (hold) => {
+    const g = new RunwayGame(5, { stage: "landing" });
+    g.start();
+    g.ac.h = (RETARD_FT - 5) * FT;
+    if (hold) g.holdThrust(true);
+    run(g, 0.3);
+    return g;
+  };
+  const g = flare(false);
+  assert.ok(g.throttle < 0.2, "retarding");
+  for (let i = 0; i < 120 && g.phase === "fly"; i++) g.update(1 / 120);
+  assert.equal(g.throttle, 0);
+  assert.ok(flare(true).throttle > 0.5, "the held levers win");
+  const manual = new RunwayGame(5, { stage: "landing", assist: false });
+  manual.start();
+  const t0 = manual.throttle;
+  manual.ac.h = (RETARD_FT - 5) * FT;
+  manual.update(1 / 60);
+  assert.ok(Math.abs(manual.throttle - t0) < 0.01, "no retard without the assist");
 });
 
 test("liveries: eight fictional schemes with unique ids and valid colours, falling back to the classic", () => {
