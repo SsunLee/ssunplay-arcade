@@ -1,9 +1,9 @@
-import { RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, GRADES, FAILURES, formatWind, clamp } from "./runway-engine.js";
+import { RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, GRADES, FAILURES, HOLD, formatWind, clamp, holdStick, holdLabel } from "./runway-engine.js";
 import { RunwayView } from "./runway-view.js";
 
 const shareIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg>';
 const HINT = {
-  throttle: "추력을 끝까지 올리세요 (Shift · THR +)",
+  throttle: "추력을 끝까지 올리세요 (Shift · THR + · 가속 버튼)",
   wait: "속도가 붙고 있어요… VR까지 기다리세요",
   rotate: "로테이트! 기수를 드세요 (S · ↓ · 핸들을 아래로)",
   climb: "기수 15° 유지, 300피트까지 상승",
@@ -105,6 +105,7 @@ export class RunwayController {
     this.drag = null;
     this.yoke = null; // the on-screen yoke being dragged
     this.yokeShown = { pitch: 0, roll: 0 };
+    this.boost = null; // the hold-to-accelerate button being held: { id, x, y, stick }
     this.tilt = null;
     this.sound = new Sound(sound);
     app.innerHTML = header + `<main id="main" class="game-shell runway" data-stage="takeoff" data-phase="ready">
@@ -122,6 +123,7 @@ export class RunwayController {
 <div id="rw-stick" class="rw-stick" hidden aria-hidden="true"><i></i></div>
 <div id="rw-intro" class="rw-intro"></div>
 <div class="rw-pad" aria-label="조종 버튼"><div class="rw-thr"><button data-hold="throttle:1" aria-label="추력 올리기">THR +</button><button data-hold="throttle:-1" aria-label="추력 줄이기">THR −</button></div>
+<div id="rw-boost" class="rw-boost" role="button" aria-label="누르고 있으면 가속 · 끌어서 조종 (아래로 끌면 기수 들기)"><span class="rw-boost-ring"><i id="rw-boost-knob" class="rw-boost-knob"></i><b id="rw-boost-arrow" class="rw-boost-arrow"></b></span><span class="rw-boost-text">누르고 가속</span><small id="rw-boost-dir" class="rw-boost-dir" aria-hidden="true"></small></div>
 <div class="rw-yoke"><button data-hold="pitch:-1" class="up" aria-label="기수 내리기">▲</button><button data-hold="roll:-1" class="left" aria-label="왼쪽으로 기울이기">◀</button><div id="rw-wheel" class="rw-wheel" role="img" aria-label="조종 핸들: 위아래로 끌면 기수, 좌우로 끌면 기울기">${YOKE_SVG}</div><button data-hold="roll:1" class="right" aria-label="오른쪽으로 기울이기">▶</button><button data-hold="pitch:1" class="down" aria-label="기수 들기">▼</button></div></div>
 <div id="result" class="result-overlay" hidden></div>
 </main>`;
@@ -249,6 +251,29 @@ export class RunwayController {
     };
     for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) wheel.addEventListener(t, yokeEnd, opt);
     wheel.addEventListener("contextmenu", (e) => e.preventDefault(), opt);
+    // hold-to-accelerate: thrust ramps up while pressed; dragging while held flies like the yoke (down = nose up)
+    const boost = this.$("rw-boost");
+    boost.addEventListener("pointerdown", (e) => {
+      if (this.boost || (e.pointerType === "mouse" && e.button !== 0)) return;
+      e.preventDefault();
+      this.sound.ensure();
+      boost.setPointerCapture(e.pointerId);
+      this.boost = { id: e.pointerId, x: e.clientX, y: e.clientY, stick: holdStick(0, 0) };
+      boost.classList.add("on");
+      if (g.phase === "ready") this.start();
+      g.holdThrust(true);
+      this.drawBoost();
+    }, opt);
+    boost.addEventListener("pointermove", (e) => {
+      if (this.boost?.id !== e.pointerId) return;
+      e.preventDefault();
+      this.boost.stick = holdStick(e.clientX - this.boost.x, e.clientY - this.boost.y);
+      this.drawBoost();
+    }, opt);
+    for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) boost.addEventListener(t, (e) => { if (this.boost?.id === e.pointerId) this.endBoost(); }, opt);
+    boost.addEventListener("contextmenu", (e) => e.preventDefault(), opt);
+    // iOS Safari can still scroll or zoom the page from a touch unless touchmove is cancelled
+    boost.addEventListener("touchmove", (e) => e.preventDefault(), { ...opt, passive: false });
     const KEYS = {
       KeyW: "pd", ArrowUp: "pd", KeyS: "pu", ArrowDown: "pu", KeyA: "rl", ArrowLeft: "rl", KeyD: "rr", ArrowRight: "rr",
       ShiftLeft: "tu", ShiftRight: "tu", Equal: "tu", NumpadAdd: "tu", PageUp: "tu", ControlLeft: "td", ControlRight: "td", Minus: "td", NumpadSubtract: "td", PageDown: "td",
@@ -290,16 +315,35 @@ export class RunwayController {
       this.yoke = null;
       wheel.classList.remove("on");
       stick.hidden = true;
+      this.endBoost();
     }, opt);
   }
+  endBoost() {
+    if (!this.boost) return;
+    this.boost = null;
+    this.g.holdThrust(false);
+    this.$("rw-boost").classList.remove("on");
+    this.drawBoost();
+  }
+  /** Knob offset, a direction arrow and a short label (기수↑ …) for the hold-button drag. */
+  drawBoost() {
+    const s = this.boost?.stick, el = this.$("rw-boost"), travel = el.clientWidth * 0.32 / HOLD.radius;
+    this.$("rw-boost-knob").style.transform = s ? `translate(calc(-50% + ${(s.x * travel).toFixed(1)}px), calc(-50% + ${(s.y * travel).toFixed(1)}px))` : "";
+    const arrow = this.$("rw-boost-arrow"), mag = s ? Math.max(Math.abs(s.pitch), Math.abs(s.roll)) : 0;
+    arrow.style.opacity = s?.active ? (0.35 + mag * 0.65).toFixed(2) : "0";
+    if (s?.active) arrow.style.transform = `rotate(${(s.angle * 180 / Math.PI).toFixed(1)}deg)`;
+    const label = s ? holdLabel(s) : "";
+    this.set("rw-boost-dir", "text", label);
+    el.classList.toggle("dragging", !!label);
+  }
   applyInput() {
-    const k = this.keys, h = this.hold, d = this.drag, y = this.yoke, t = this.tilt?.on ? this.tilt : null;
-    const pitch = (k.has("pu") ? 1 : 0) - (k.has("pd") ? 1 : 0) + h.pitch + (d ? d.dy : 0) + (y ? y.dy : 0) + (t ? t.pitch : 0),
-      roll = (k.has("rr") ? 1 : 0) - (k.has("rl") ? 1 : 0) + h.roll + (d ? d.dx : 0) + (y ? y.dx : 0) + (t ? t.roll : 0),
+    const k = this.keys, h = this.hold, d = this.drag, y = this.yoke, t = this.tilt?.on ? this.tilt : null, b = this.boost?.stick;
+    const pitch = (k.has("pu") ? 1 : 0) - (k.has("pd") ? 1 : 0) + h.pitch + (d ? d.dy : 0) + (y ? y.dy : 0) + (b ? b.pitch : 0) + (t ? t.pitch : 0),
+      roll = (k.has("rr") ? 1 : 0) - (k.has("rl") ? 1 : 0) + h.roll + (d ? d.dx : 0) + (y ? y.dx : 0) + (b ? b.roll : 0) + (t ? t.roll : 0),
       thr = (k.has("tu") ? 1 : 0) - (k.has("td") ? 1 : 0) + h.throttle;
     this.g.setInput(pitch, roll, thr);
   }
-  /** The yoke mirrors every input source (keys, buttons, drag, tilt) and eases back to centre. */
+  /** The yoke mirrors every input source (keys, buttons, drag, hold button, tilt) and eases back to centre. */
   drawYoke(dt) {
     const inp = this.g.input, s = this.yokeShown, k = 1 - Math.exp(-dt * 16);
     s.pitch += (inp.pitch - s.pitch) * k;

@@ -136,7 +136,7 @@ export const ES = [
  "Deténgase. Bomberos en camino",
  "¡Motor y al aire! Repito, motor y al aire",
  "¡Emergencia! Bomberos en camino",
- "Empuje a fondo (Shift · THR +)",
+ "Empuje a fondo (Shift · THR + · botón de aceleración)",
  "Ganando velocidad… espera a VR",
  "¡Rota! Sube el morro (S · ↓ · volante abajo)",
  "Mantén 15° y sube a 300 ft",
@@ -183,5 +183,12 @@ export const ES = [
  "Suelta el volante y la asistencia nivela las alas despacio; en la aproximación te acerca suavemente al eje y a la senda y mantiene VAPP. Se aparta mientras pilotas, ¡y la recogida es cosa tuya!",
  "Teclado: W/↑ morro abajo · S/↓ morro arriba · A/D o ←/→ alabeo · Shift/+ más empuje · Ctrl/− menos empuje · Espacio empezar · R reiniciar · Esc pausa.",
  "Móvil: arrastra el volante de abajo a la derecha para pilotar (abajo sube el morro, a los lados alabea; al soltar vuelve al centro). También puedes arrastrar la escena o pulsar los botones junto al volante, y 📱 activa el control por inclinación.",
- "Un vuelo ficticio, sin relación con ninguna aerolínea ni aeropuerto reales."
+ "Un vuelo ficticio, sin relación con ninguna aerolínea ni aeropuerto reales.",
+ "Mantén para acelerar · arrastra para pilotar (abajo sube el morro)",
+ "Mantén y acelera",
+ "Morro ↑",
+ "Morro ↓",
+ "◀ Alabeo",
+ "Alabeo ▶",
+ "Botón de aceleración: mantén pulsado el botón de abajo en el centro y el empuje sube a fondo. Sin soltar, arrastra abajo para subir el morro, arriba para bajarlo y a los lados para alabear (el volante se mueve igual). Al soltar, los mandos vuelven al centro; el empuje pasa a ralentí en tierra antes de despegar, o vuelve al valor anterior en vuelo."
 ];

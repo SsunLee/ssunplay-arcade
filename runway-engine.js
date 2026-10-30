@@ -14,6 +14,9 @@ export const CALLSIGN = "SSUN 123";
 const VREF_TO = 178, VREF_LDG = 140, MAX_THRUST = 3.6, CLIMB_DONE = 300 * FT, EYE = 4;
 const PITCH_RATE = 3, PITCH_LAG = 5; // deg/s at full deflection; the pitch rate follows the stick with a 0.2 s lag
 const ASSIST_BANK = 5, ASSIST_LEVEL = 0.35; // assist: max bank it commands, and how gently it rolls
+// hold-to-accelerate button: drag radius and deadzone in px, thrust ramp while held and the ease back on release (per s)
+export const HOLD = { radius: 80, dead: 10, ramp: 0.8, back: 1 };
+export const HOLD_LABELS = { up: "기수↑", down: "기수↓", left: "◀ 기울기", right: "기울기 ▶" };
 export const PAPI_ANGLES = [2.5, 2.83, 3.17, 3.5]; // left to right as seen on final, nearest the runway last
 export const GRADES = {
   butter: "버터 랜딩!",
@@ -97,6 +100,25 @@ export function scoreLanding({ fpm, centerline, distance, crashed = false, goAro
     zone = part(25, Math.abs(distance), 60, 540);
   return { value: sink + line + zone, grade, sink, line, zone };
 }
+/** Hold-button drag (px, +y = down) to stick: drag down = pull back (nose up), sideways = roll.
+ * Each axis has its own deadzone and is proportional out to the radius; the knob is clamped to a circle. */
+export function holdStick(dx, dy, radius = HOLD.radius, dead = HOLD.dead) {
+  const axis = (v) => Math.sign(v) * clamp((Math.abs(v) - dead) / (radius - dead), 0, 1),
+    len = Math.hypot(dx, dy), k = len > radius ? radius / len : 1;
+  return { pitch: axis(dy), roll: axis(dx), x: dx * k, y: dy * k, angle: Math.atan2(dy, dx), active: len > dead };
+}
+/** The little label beside the knob, e.g. "기수↑ · 기울기 ▶". */
+export function holdLabel({ pitch, roll }, min = 0.15) {
+  const parts = [];
+  if (pitch > min) parts.push(HOLD_LABELS.up);
+  if (pitch < -min) parts.push(HOLD_LABELS.down);
+  if (roll < -min) parts.push(HOLD_LABELS.left);
+  if (roll > min) parts.push(HOLD_LABELS.right);
+  return parts.join(" · ");
+}
+/** Where the thrust goes when the hold button is let go: idle on the ground before liftoff, else the setting from before. */
+/** Climb-out keeps at least climb thrust so letting go after liftoff never stalls the jet. */
+export const releaseThrottle = ({ grounded, prev, climb = false }) => (grounded ? 0 : clamp(climb ? Math.max(prev, 0.85) : prev, 0, 1));
 export const totalScore = (takeoff, landing) => Math.round((takeoff || 0) * 0.4 + (landing || 0) * 0.6);
 /** Load factor from the lift curve; flaps set the reference speed. */
 const liftFactor = (v, alpha, vref) => (v / (vref * KT)) ** 2 * (0.45 + 0.1 * alpha);
@@ -111,6 +133,8 @@ export class RunwayGame {
     this.gustPhase = this.rand() * 10;
     this.assist = assist;
     this.input = { pitch: 0, roll: 0, throttle: 0 };
+    this.boost = null; // hold-to-accelerate: { prev } while held
+    this.thrustBack = null; // thrust the throttle eases back to after the hold is released
     // what the control surfaces are doing (-1..1), including the assist; drives the 3D ailerons and elevator
     this.ctl = { pitch: 0, roll: 0 };
     // assist state for the HUD: which axes it is flying, and +1/-1 when the speed wants more or less thrust
@@ -126,6 +150,8 @@ export class RunwayGame {
   get wind() { return this.stage === "landing" ? this.windLDG : this.windTO; }
   emit(type, data = {}) { this.events.push({ type, ...data }); }
   setupTakeoff() {
+    this.boost = null;
+    this.thrustBack = null;
     this.stage = "takeoff";
     this.phase = "ready";
     this.t = 0;
@@ -136,6 +162,8 @@ export class RunwayGame {
     this.said = new Set();
   }
   setupLanding() {
+    this.boost = null;
+    this.thrustBack = null;
     this.stage = "landing";
     this.phase = "ready";
     this.t = 0;
@@ -185,6 +213,33 @@ export class RunwayGame {
     this.input.throttle = clamp(throttle, -1, 1);
   }
   setThrottle(v) { this.throttle = clamp(v, 0, 1); }
+  /** Hold-to-accelerate: while held the thrust ramps to full; on release it returns to idle (on the ground before
+   * liftoff) or to the setting from before the hold (in the air). */
+  holdThrust(on) {
+    if (on) {
+      if (!this.boost) this.boost = { prev: this.thrustBack ?? this.throttle };
+      this.thrustBack = null;
+      return;
+    }
+    if (!this.boost) return;
+    const grounded = this.stage === "takeoff" && this.ac.ground && this.track.liftoffKt == null;
+    this.thrustBack = releaseThrottle({ grounded, prev: this.boost.prev, climb: this.stage === "takeoff" && !grounded });
+    this.boost = null;
+  }
+  /** Throttle levers: `rate` from the THR inputs, plus the hold button ramp or the ease back after it. */
+  driveThrottle(rate, dt) {
+    let v = this.throttle + rate * dt;
+    if (this.boost) v += HOLD.ramp * dt;
+    else if (this.thrustBack != null) {
+      if (this.input.throttle) this.thrustBack = null; // the levers take over
+      else {
+        const gap = this.thrustBack - this.throttle;
+        if (Math.abs(gap) <= HOLD.back * dt) { v = this.thrustBack; this.thrustBack = null; }
+        else v = this.throttle + Math.sign(gap) * HOLD.back * dt;
+      }
+    }
+    this.throttle = clamp(v, 0, 1);
+  }
   get ias() { return this.ac.v / KT; }
   get altFt() { return this.ac.h / FT; }
   get fpm() { return (this.ac.vy / FT) * 60; }
@@ -261,7 +316,7 @@ export class RunwayGame {
   }
   stepTakeoff(dt) {
     const a = this.ac, tr = this.track, kt = a.v / KT;
-    this.throttle = clamp(this.throttle + this.input.throttle * 0.55 * dt, 0, 1);
+    this.driveThrottle(this.input.throttle * 0.55, dt);
     if (this.throttle > 0.9) this.callout("thrust", "THRUST SET");
     this.ctl.roll = this.input.roll;
     if (a.ground) {
@@ -327,10 +382,10 @@ export class RunwayGame {
     const a = this.ac, tr = this.track;
     if (this.phase === "roll") return this.rollout(dt);
     const w = this.windLDG, ft0 = a.h / FT, kt0 = a.v / KT;
-    this.throttle = clamp(this.throttle + this.input.throttle * 0.4 * dt, 0, 1);
+    this.driveThrottle(this.input.throttle * 0.4, dt);
     // assist: a gentle auto-throttle toward VAPP above 50 ft, and a hint when the speed is off
     this.assistInfo.thr = ft0 > 50 && Math.abs(kt0 - VAPP) > 6 ? Math.sign(VAPP - kt0) : 0;
-    if (this.assist && !this.input.throttle && ft0 > 50) this.throttle = clamp(this.throttle + clamp((VAPP - kt0) * 0.01, -0.06, 0.06) * dt, 0, 1);
+    if (this.assist && !this.input.throttle && !this.boost && this.thrustBack == null && ft0 > 50) this.throttle = clamp(this.throttle + clamp((VAPP - kt0) * 0.01, -0.06, 0.06) * dt, 0, 1);
     // assist: above 60 ft, nudge the descent onto the glideslope; the flare is left to the pilot
     this.pitchControl(dt, 1, ft0 > 60 ? this.vsAssist(-a.v * Math.tan(RWY.gs * DEG) - this.gsDots * 1.2) : null);
     const bank0 = a.bank, manualRoll = Math.abs(this.input.roll) > 0.02 || !this.assist;

@@ -215,7 +215,7 @@ const rows=[
  ["즉시 정지하세요. 소방차 출동","Stop immediately. Fire trucks rolling","直ちに停止。消防車出動","立即停止。消防車出動"],
  ["복행하세요! 다시 한 번, 복행","Go around! I say again, go around","ゴーアラウンド！繰り返す、ゴーアラウンド","重飛！重複，重飛"],
  ["비상! 소방차 출동","Emergency! Fire trucks rolling","緊急！消防車出動","緊急！消防車出動"],
- ["추력을 끝까지 올리세요 (Shift · THR +)","Push thrust all the way (Shift · THR +)","推力を最大に (Shift・THR +)","推力推到底 (Shift · THR +)"],
+ ["추력을 끝까지 올리세요 (Shift · THR + · 가속 버튼)","Push thrust all the way (Shift · THR + · hold button)","推力を最大に (Shift・THR +・加速ボタン)","推力推到底 (Shift · THR + · 加速按鈕)"],
  ["속도가 붙고 있어요… VR까지 기다리세요","Picking up speed… wait for VR","加速中… VRまで待って","正在加速… 等到 VR"],
  ["로테이트! 기수를 드세요 (S · ↓ · 핸들을 아래로)","Rotate! Pull the nose up (S · ↓ · yoke down)","ローテート！機首を上げて (S・↓・操縦桿を下へ)","抬輪！拉起機頭 (S · ↓ · 駕駛盤往下)"],
  ["기수 15° 유지, 300피트까지 상승","Hold 15° pitch, climb to 300 ft","機首15°を保ち300フィートまで上昇","保持 15° 爬升到 300 英尺"],
@@ -263,7 +263,13 @@ const rows=[
  ["키보드: W/↑ 기수 내리기 · S/↓ 기수 들기 · A/D 또는 ←/→ 기울이기 · Shift/+ 추력 올리기 · Ctrl/− 추력 줄이기 · Space 시작 · R 다시 시작 · Esc 일시 정지.","Keyboard: W/↑ nose down · S/↓ nose up · A/D or ←/→ bank · Shift/+ thrust up · Ctrl/− thrust down · Space start · R restart · Esc pause.","キーボード：W/↑ 機首下げ・S/↓ 機首上げ・A/Dまたは←/→ 傾き・Shift/+ 推力アップ・Ctrl/− 推力ダウン・Space 開始・R やり直し・Esc 一時停止。","鍵盤：W/↑ 機頭向下 · S/↓ 機頭向上 · A/D 或 ←/→ 傾斜 · Shift/+ 增加推力 · Ctrl/− 減少推力 · Space 開始 · R 重新開始 · Esc 暫停。"],
  ["모바일: 오른쪽 아래 조종 핸들을 끌어 조종하세요(아래로 끌면 기수 들기, 좌우로 끌면 기울이기, 손을 떼면 가운데로 돌아와요). 화면을 끌거나 핸들 주변 버튼을 눌러도 되고, 📱 버튼으로 기기 기울기 조종을 켤 수 있어요.","Mobile: drag the yoke at the bottom right to fly (drag down for nose up, sideways to bank; let go and it springs back to center). You can also drag the scene or press the buttons around the yoke, and 📱 turns on tilt control.","モバイル：右下の操縦桿をドラッグして操縦(下で機首上げ、左右で傾き、離すと中央に戻る)。画面をドラッグしても、操縦桿の周りのボタンでもOK。📱ボタンで傾き操縦をオンにできます。","手機：拖曳右下的駕駛盤操控（往下拖抬頭、左右拖傾斜，放開會回到中間）。也可以拖曳畫面或按駕駛盤旁的按鈕，📱 按鈕可開啟傾斜操控。"],
  ["실제 항공사·공항 운영과 관계없는 가상의 비행입니다.","A fictional flight, unrelated to any real airline or airport operations.","実在の航空会社・空港の運用とは関係のない架空のフライトです。","與真實航空公司及機場營運無關的虛構飛行。"],
-];
+ ["누르고 있으면 가속 · 끌어서 조종 (아래로 끌면 기수 들기)", "Hold to accelerate · drag to fly (drag down for nose up)", "押し続けて加速・ドラッグで操縦(下で機首上げ)", "按住加速 · 拖曳操控（往下拖抬頭）"],
+ ["누르고 가속", "Hold to boost", "押して加速", "按住加速"],
+ ["기수↑", "Nose ↑", "機首↑", "機頭↑"],
+ ["기수↓", "Nose ↓", "機首↓", "機頭↓"],
+ ["◀ 기울기", "◀ Bank", "◀ 傾き", "◀ 傾斜"],
+ ["기울기 ▶", "Bank ▶", "傾き ▶", "傾斜 ▶"],
+ ["가속 버튼: 화면 아래 가운데 버튼을 누르고 있으면 추력이 끝까지 올라가요. 누른 채로 아래로 끌면 기수 들기, 위로 끌면 기수 내리기, 좌우로 끌면 기울이기예요(조종 핸들도 같이 움직여요). 손을 떼면 조종은 가운데로 돌아오고, 추력은 이륙 전 지상에서는 아이들로, 비행 중에는 누르기 전 값으로 돌아가요.", "Hold button: press and hold the button at the bottom center and the thrust goes all the way up. While holding, drag down for nose up, up for nose down, sideways to bank (the yoke moves along). Let go and the controls return to center; the thrust drops to idle on the ground before liftoff, or back to its earlier setting in the air.", "加速ボタン：画面下中央のボタンを押し続けると推力が最大まで上がります。押したまま下へドラッグで機首上げ、上で機首下げ、左右で傾き(操縦桿も一緒に動きます)。離すと操縦は中央に戻り、推力は離陸前の地上ならアイドルに、飛行中なら押す前の値に戻ります。", "加速按鈕：按住畫面下方中央的按鈕，推力會推到底。按住時往下拖抬頭、往上拖壓低機頭、左右拖傾斜（駕駛盤也會跟著動）。放開後操控回到中間；推力在離地前的地面會回到慢車，飛行中則回到按下前的設定。"],];
 if(ES.length!==rows.length)console.error('i18n: Spanish has '+ES.length+' rows, expected '+rows.length);
 export const ROW_COUNT=rows.length;
 const dictionaries=new Map(rows.map((row,i)=>[row[0],[...row.slice(1),ES[i]??row[1]]]));

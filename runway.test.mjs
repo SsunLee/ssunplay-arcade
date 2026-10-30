@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, MAX_CROSS, SINK_GRADES, KT, FT, GRADES, FAILURES,
+  HOLD, HOLD_LABELS, holdStick, holdLabel, releaseThrottle,
   landingGrade, scoreLanding, scoreTakeoff, totalScore, papiLights, windComponents, formatWind, glideslopeDots, localizerDots,
 } from "./runway-engine.js";
 
@@ -311,4 +312,113 @@ test("frame rate does not change the outcome much", () => {
     return g.takeoff.value;
   };
   assert.ok(Math.abs(run(1 / 120) - run(1 / 30)) <= 6);
+});
+
+test("hold button drag: down = nose up, sideways = roll, with a deadzone and a clamped radius", () => {
+  const still = holdStick(0, 0);
+  assert.equal(still.pitch, 0);
+  assert.equal(still.roll, 0);
+  assert.equal(still.active, false);
+  // inside the deadzone nothing moves
+  const tiny = holdStick(HOLD.dead - 1, -(HOLD.dead - 1));
+  assert.equal(Math.abs(tiny.pitch) + Math.abs(tiny.roll), 0);
+  // drag down pulls the nose up (positive pitch, like the S key / ▼ button), drag up pushes it down
+  assert.ok(holdStick(0, 40).pitch > 0);
+  assert.ok(holdStick(0, -40).pitch < 0);
+  assert.ok(holdStick(40, 0).roll > 0 && holdStick(-40, 0).roll < 0);
+  // proportional between the deadzone and the radius
+  const half = HOLD.dead + (HOLD.radius - HOLD.dead) / 2;
+  assert.ok(Math.abs(holdStick(0, half).pitch - 0.5) < 1e-9);
+  assert.ok(holdStick(0, 30).pitch < holdStick(0, 60).pitch);
+  // full deflection at the radius and beyond; the knob stays on the circle
+  assert.equal(holdStick(0, HOLD.radius).pitch, 1);
+  const far = holdStick(300, 400);
+  assert.equal(far.pitch, 1);
+  assert.equal(far.roll, 1);
+  assert.ok(Math.abs(Math.hypot(far.x, far.y) - HOLD.radius) < 1e-9);
+  assert.ok(Math.abs(far.y / far.x - 4 / 3) < 1e-9);
+  // a mostly vertical drag does not roll
+  assert.equal(holdStick(6, 70).roll, 0);
+  assert.equal(HOLD.radius, 80);
+});
+
+test("hold button label names the drag direction", () => {
+  assert.equal(holdLabel(holdStick(0, 60)), HOLD_LABELS.up);
+  assert.equal(HOLD_LABELS.up, "기수↑");
+  assert.equal(holdLabel(holdStick(0, -60)), "기수↓");
+  assert.equal(holdLabel(holdStick(60, 60)), "기수↑ · 기울기 ▶");
+  assert.equal(holdLabel(holdStick(-60, 0)), "◀ 기울기");
+  assert.equal(holdLabel(holdStick(3, 3)), "");
+});
+
+test("releasing the hold button: idle on the ground before liftoff, the earlier setting in the air", () => {
+  assert.equal(releaseThrottle({ grounded: true, prev: 0.7 }), 0);
+  assert.equal(releaseThrottle({ grounded: false, prev: 0.42 }), 0.42);
+  assert.equal(releaseThrottle({ grounded: false, prev: 2 }), 1);
+  assert.equal(releaseThrottle({ grounded: false, prev: 0, climb: true }), 0.85);
+});
+
+test("holding the button ramps the thrust to full and returns to idle on the takeoff roll", () => {
+  const g = new RunwayGame(7);
+  g.start();
+  g.holdThrust(true);
+  run(g, 0.5);
+  const partway = g.throttle;
+  assert.ok(partway > 0.2 && partway < 1);
+  run(g, 2);
+  assert.equal(g.throttle, 1);
+  assert.ok(g.ac.ground && g.ias > 0);
+  g.holdThrust(false);
+  assert.equal(g.thrustBack, 0);
+  run(g, 0.3);
+  assert.ok(g.throttle < 1 && g.throttle > 0, "eases back rather than snapping");
+  run(g, 1.5);
+  assert.equal(g.throttle, 0);
+  assert.equal(g.thrustBack, null);
+});
+
+test("hold button alone flies a takeoff, and in the air it returns to the earlier thrust", () => {
+  const g = new RunwayGame(3);
+  g.start();
+  g.setThrottle(0.6);
+  g.holdThrust(true);
+  // the drag pitches up at VR while the button stays held
+  step(g, (x) => x.setInput(x.ias >= V_SPEEDS.vr && x.ac.pitch < 15 ? holdStick(0, 60).pitch : 0, 0, 0), 60);
+  assert.ok(g.takeoff?.ok, "takeoff completes");
+  assert.equal(g.throttle, 1);
+
+  const a = new RunwayGame(3);
+  a.start();
+  a.setThrottle(0.9);
+  a.holdThrust(true);
+  for (let i = 0; i < 120 * 60 && a.ac.ground && a.phase === "fly"; i++) { a.setInput(a.ias >= V_SPEEDS.vr && a.ac.pitch < 12 ? 1 : 0, 0, 0); a.update(1 / 120); }
+  assert.equal(a.ac.ground, false);
+  a.holdThrust(false);
+  assert.equal(a.thrustBack, 0.9);
+  a.setInput(0, 0, 0);
+  run(a, 0.5);
+  assert.ok(Math.abs(a.throttle - 0.9) < 1e-9);
+});
+
+test("on approach the hold button overrides the auto-throttle and hands back the prior setting", () => {
+  // assist off so the auto-throttle does not move the levers after the hand-back
+  const g = new RunwayGame(5, { stage: "landing", assist: false });
+  g.start();
+  const before = g.throttle;
+  assert.ok(before < 0.9);
+  g.holdThrust(true);
+  run(g, 1);
+  assert.ok(g.throttle > before + 0.5);
+  g.holdThrust(false);
+  assert.ok(Math.abs(g.thrustBack - before) < 1e-9);
+  run(g, 1.2);
+  assert.equal(g.throttle, before);
+  assert.equal(g.thrustBack, null);
+  // THR input takes over from the ease-back
+  g.holdThrust(true);
+  run(g, 0.3);
+  g.holdThrust(false);
+  g.setInput(0, 0, -1);
+  run(g, 1 / 120);
+  assert.equal(g.thrustBack, null);
 });
