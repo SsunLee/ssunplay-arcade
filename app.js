@@ -18,6 +18,9 @@ import { SubwayGame } from "./subway-engine.js";
 import { SubwayView } from "./subway-view.js";
 import { SubwayController, SUBWAY_HELP } from "./subway-ui.js";
 import { subwayShareText } from "./subway-engine.js";
+import { RunwayGame } from "./runway-engine.js";
+import { RunwayView } from "./runway-view.js";
+import { RunwayController } from "./runway-ui.js";
 import { t, languageControl, initI18n, translatePage } from "./i18n.js";
 const $ = (s) => document.querySelector(s),
   app = $("#app"),
@@ -32,6 +35,7 @@ let data = {
   pasta: 0,
   dalgona: 0,
   subway: 0,
+  runway: 0,
   drive: {},
   history: [],
   practice: 0,
@@ -117,12 +121,12 @@ const inGame = (e) => e.target instanceof Element && e.target.closest(".game-she
 for (const type of ["selectstart", "contextmenu"]) document.addEventListener(type, (e) => inGame(e) && e.preventDefault());
 document.addEventListener("touchstart", (e) => inGame(e) && e.target instanceof HTMLCanvasElement && e.preventDefault(), { passive: false });
 function header(game) {
-  return `<header class="${game ? "game-header" : "site-header"}"><a href="/" class="brand" data-nav>${game ? homeIcon : '<span class="brand-mark">S.</span>'}<span>${game ? "쑨플레이" : "SSUNPLAY"}${!game ? "<small>조금 이상한 게임들</small>" : ""}</span></a>${game ? `<div class="bar-title">${game === "subway" ? "지하철 뛰어타기" : game === "beer" ? "맥주 잘 따르기" : game === "pasta" ? "파스타 만들기" : game === "dalgona" ? "달고나 뽑기" : "부장님의 티코레이싱"}</div>` : ""}<nav><button data-action="records">내 기록</button><button data-action="help">${game ? "도움말" : "사이트 안내"}</button>${game ? '<button data-action="fullscreen" aria-label="전체 화면">⛶</button>' : ""}<button data-action="sound" aria-label="소리 켜기/끄기">${muted ? "♩ OFF" : "♫ ON"}</button>${languageControl()}</nav></header>`;
+  return `<header class="${game ? "game-header" : "site-header"}"><a href="/" class="brand" data-nav>${game ? homeIcon : '<span class="brand-mark">S.</span>'}<span>${game ? "쑨플레이" : "SSUNPLAY"}${!game ? "<small>조금 이상한 게임들</small>" : ""}</span></a>${game ? `<div class="bar-title">${game === "subway" ? "지하철 뛰어타기" : game === "beer" ? "맥주 잘 따르기" : game === "pasta" ? "파스타 만들기" : game === "dalgona" ? "달고나 뽑기" : game === "runway" ? "쑨에어 버터 랜딩" : "부장님의 티코레이싱"}</div>` : ""}<nav><button data-action="records">내 기록</button><button data-action="help">${game ? "도움말" : "사이트 안내"}</button>${game ? '<button data-action="fullscreen" aria-label="전체 화면">⛶</button>' : ""}<button data-action="sound" aria-label="소리 켜기/끄기">${muted ? "♩ OFF" : "♫ ON"}</button>${languageControl()}</nav></header>`;
 }
 function home() {
   clean();
   document.title = "쑨플레이 — 조금 이상한 3D 게임들";
-  app.innerHTML = `${header()}<main id="main" class="home"><div class="intro-line"><div><span class="eyebrow">작은 조작, 아슬아슬한 순간.</span><h1>조금 이상한 게임들</h1><p>설치 없이, 지금 바로 플레이하세요.</p></div><span class="stamp">JUST<br>ONE<br>MORE.</span></div><div class="news"><span>UPDATE</span><div class="news-lines"><p>NEW 지하철 뛰어타기! 문 닫히기 직전, 부장님의 출근 질주.</p><p>NEW 달고나 뽑기! 녹이고, 부풀리고, 살살 떼어 내기.</p></div><time>2026.10.31</time></div><section class="game-grid" aria-label="게임 목록"><a class="game-card" href="/game/drive/" data-nav><div class="card-visual"><canvas id="preview-drive" aria-label="3D 티코와 바다 절벽"></canvas><span class="card-tag yellow">간담이 서늘한</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">01 / TICO</span><h2>부장님의 티코레이싱</h2><p>브레이크 없는 부장님의 티코.<br>절벽에 얼마나 가까이 갈 수 있을까요?</p><div class="card-bottom"><span>당겼다 놓기 · 5개 스테이지</span><strong>플레이 ↗</strong></div></div></a><a class="game-card" href="/game/beer/" data-nav><div class="card-visual beer-card"><canvas id="preview-beer" aria-label="3D 맥주 탭과 유리잔"></canvas><span class="card-tag yellow">NEW · 거품까지 맛있게</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">02 / TAPROOM</span><h2>맥주 잘 따르기</h2><p>기울이면 맥주, 세우면 거품.<br>세 손님의 완벽한 한 잔을 완성하세요.</p><div class="card-bottom"><span>누르고 따르기 · 잔 기울이기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card pasta-card" href="/game/pasta/" data-nav><div class="card-visual"><canvas id="preview-pasta" aria-label="파스타 만들기"></canvas><span class="card-tag">손맛 좋은 한 접시</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">03 / CUCINA</span><h2>파스타 만들기</h2><p>탁탁 썰고, 두 화구를 오가며, 출렁 토스.<br>세 단계로 완성하는 나만의 한 접시.</p><div class="card-bottom"><span>리듬 칼질 · 두 화구 멀티태스킹</span><strong>플레이 ↗</strong></div></div></a><a class="game-card dalgona-card" href="/game/dalgona/" data-nav><div class="card-visual"><canvas id="preview-dalgona" aria-label="달고나 뽑기"></canvas><span class="card-tag yellow">NEW · 숨죽이는 바늘 끝</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">04 / STREET</span><h2>달고나 뽑기</h2><p>연탄불에 녹이고, 소다로 부풀리고.<br>금 가기 전에 모양을 떼어 내세요.</p><div class="card-bottom"><span>만들기 · 바늘 뽑기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card subway-card" href="/game/subway/" data-nav><div class="card-visual"><canvas id="preview-subway" aria-label="지하철 뛰어타기"></canvas><span class="card-tag yellow">NEW · 출근길의 마지막 기회</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">05 / METRO</span><h2>지하철 뛰어타기</h2><p>문 닫히기 직전, 부장님의 출근 질주.</p><div class="card-bottom"><span>좌우 이동 · 점프 · 아슬아슬 탑승</span><strong>플레이 ↗</strong></div></div></a></section><div class="home-record"><span>MY BEST</span><p>해안 절벽 <b>${data.drive[0] != null ? fmt(data.drive[0]) + "m" : "—"}</b></p><p>맥주 잘 따르기 <b>${data.beer || "—"}${data.beer ? "점" : ""}</b></p><p>파스타 만들기 <b>${data.pasta || "—"}${data.pasta ? "점" : ""}</b></p><p>달고나 뽑기 <b>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</b></p><p>지하철 뛰어타기 <b>${data.subway || "—"}${data.subway ? "점" : ""}</b></p><button data-action="records">기록 보기 ↗</button></div><section class="how"><h2>생각보다 쉽고,<br>생각보다 어렵습니다.</h2><p>마우스와 손가락 하나면 충분해요.<br>짧은 한 판을 즐기고 나의 최고 기록에 도전하세요.</p></section></main><footer><a href="/" class="footer-brand" data-nav>SSUNPLAY</a><p>Play a little. Try again.</p><button data-action="credits">제작 정보 · 참고 사이트</button><a href="https://github.com/SsunLee/ssunplay-arcade" target="_blank" rel="noreferrer">GitHub ↗</a></footer>`;
+  app.innerHTML = `${header()}<main id="main" class="home"><div class="intro-line"><div><span class="eyebrow">작은 조작, 아슬아슬한 순간.</span><h1>조금 이상한 게임들</h1><p>설치 없이, 지금 바로 플레이하세요.</p></div><span class="stamp">JUST<br>ONE<br>MORE.</span></div><div class="news"><span>UPDATE</span><div class="news-lines"><p>NEW 쑨에어 버터 랜딩! 김포 14R에서 V1, 로테이트, 그리고 버터 랜딩까지.</p><p>NEW 지하철 뛰어타기! 문 닫히기 직전, 부장님의 출근 질주.</p><p>NEW 달고나 뽑기! 녹이고, 부풀리고, 살살 떼어 내기.</p></div><time>2026.10.31</time></div><section class="game-grid" aria-label="게임 목록"><a class="game-card" href="/game/drive/" data-nav><div class="card-visual"><canvas id="preview-drive" aria-label="3D 티코와 바다 절벽"></canvas><span class="card-tag yellow">간담이 서늘한</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">01 / TICO</span><h2>부장님의 티코레이싱</h2><p>브레이크 없는 부장님의 티코.<br>절벽에 얼마나 가까이 갈 수 있을까요?</p><div class="card-bottom"><span>당겼다 놓기 · 5개 스테이지</span><strong>플레이 ↗</strong></div></div></a><a class="game-card" href="/game/beer/" data-nav><div class="card-visual beer-card"><canvas id="preview-beer" aria-label="3D 맥주 탭과 유리잔"></canvas><span class="card-tag yellow">NEW · 거품까지 맛있게</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">02 / TAPROOM</span><h2>맥주 잘 따르기</h2><p>기울이면 맥주, 세우면 거품.<br>세 손님의 완벽한 한 잔을 완성하세요.</p><div class="card-bottom"><span>누르고 따르기 · 잔 기울이기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card pasta-card" href="/game/pasta/" data-nav><div class="card-visual"><canvas id="preview-pasta" aria-label="파스타 만들기"></canvas><span class="card-tag">손맛 좋은 한 접시</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">03 / CUCINA</span><h2>파스타 만들기</h2><p>탁탁 썰고, 두 화구를 오가며, 출렁 토스.<br>세 단계로 완성하는 나만의 한 접시.</p><div class="card-bottom"><span>리듬 칼질 · 두 화구 멀티태스킹</span><strong>플레이 ↗</strong></div></div></a><a class="game-card dalgona-card" href="/game/dalgona/" data-nav><div class="card-visual"><canvas id="preview-dalgona" aria-label="달고나 뽑기"></canvas><span class="card-tag yellow">NEW · 숨죽이는 바늘 끝</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">04 / STREET</span><h2>달고나 뽑기</h2><p>연탄불에 녹이고, 소다로 부풀리고.<br>금 가기 전에 모양을 떼어 내세요.</p><div class="card-bottom"><span>만들기 · 바늘 뽑기</span><strong>플레이 ↗</strong></div></div></a><a class="game-card subway-card" href="/game/subway/" data-nav><div class="card-visual"><canvas id="preview-subway" aria-label="지하철 뛰어타기"></canvas><span class="card-tag yellow">NEW · 출근길의 마지막 기회</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">05 / METRO</span><h2>지하철 뛰어타기</h2><p>문 닫히기 직전, 부장님의 출근 질주.</p><div class="card-bottom"><span>좌우 이동 · 점프 · 아슬아슬 탑승</span><strong>플레이 ↗</strong></div></div></a><a class="game-card runway-card" href="/game/runway/" data-nav><div class="card-visual"><canvas id="preview-runway" aria-label="김포 활주로 14R 위의 쑨에어 여객기"></canvas><span class="card-tag yellow">NEW · 항공덕후 주목</span><span class="play-icon">↗</span></div><div class="card-copy"><span class="card-no">06 / RUNWAY 14R</span><h2>쑨에어 버터 랜딩</h2><p>V1, 로테이트, 그리고 플레어.<br>측풍을 뚫고 버터처럼 내려앉으세요.</p><div class="card-bottom"><span>이륙 · 착륙 · 측풍</span><strong>플레이 ↗</strong></div></div></a></section><div class="home-record"><span>MY BEST</span><p>해안 절벽 <b>${data.drive[0] != null ? fmt(data.drive[0]) + "m" : "—"}</b></p><p>맥주 잘 따르기 <b>${data.beer || "—"}${data.beer ? "점" : ""}</b></p><p>파스타 만들기 <b>${data.pasta || "—"}${data.pasta ? "점" : ""}</b></p><p>달고나 뽑기 <b>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</b></p><p>지하철 뛰어타기 <b>${data.subway || "—"}${data.subway ? "점" : ""}</b></p><p>쑨에어 버터 랜딩 <b>${data.runway || "—"}${data.runway ? "점" : ""}</b></p><button data-action="records">기록 보기 ↗</button></div><section class="how"><h2>생각보다 쉽고,<br>생각보다 어렵습니다.</h2><p>마우스와 손가락 하나면 충분해요.<br>짧은 한 판을 즐기고 나의 최고 기록에 도전하세요.</p></section></main><footer><a href="/" class="footer-brand" data-nav>SSUNPLAY</a><p>Play a little. Try again.</p><button data-action="credits">제작 정보 · 참고 사이트</button><a href="https://github.com/SsunLee/ssunplay-arcade" target="_blank" rel="noreferrer">GitHub ↗</a></footer>`;
   try {
     const b = new DriveGame();
     views.push(new GameView("drive", $("#preview-drive"), b, { preview: true }));
@@ -140,6 +144,8 @@ function home() {
     views[3].render(0);
     views.push(new SubwayView($("#preview-subway"), new SubwayGame(42), { preview:true }));
     views[4].render(0);
+    views.push(new RunwayView($("#preview-runway"), new RunwayGame(42), { preview: true }));
+    views[5].render(0);
     let prev = performance.now();
     const tick = (t) => {
       if (t - prev > 100) {
@@ -328,6 +334,7 @@ function retry() {
   if (active?.kind === "subway") { mountSubway(); return; }
   if (active?.kind === "pasta") { mountPasta(); return; }
   if (active?.kind === "dalgona") { mountDalgona(); return; }
+  if (active?.kind === "runway") { mountRunway(); return; }
   if (!active) return;
   const { kind, g } = active;
   if (kind === "beer") {
@@ -361,7 +368,7 @@ function openDialog(html) {
 }
 function records() {
   openDialog(
-    `<span class="eyebrow">MY RECORDS</span><h2>나의 최고 기록</h2><p class="muted">이 브라우저에 저장되는 개인 기록입니다.</p><label class="name-label">플레이어 이름<input id="player-name" value="${esc(data.name)}" maxlength="20"></label><button class="mini" data-action="name">이름 저장</button><div class="record-row"><span>맥주 잘 따르기</span><strong>${data.beer || "—"}${data.beer ? "점" : ""}</strong></div><div class="record-row"><span>파스타 만들기</span><strong>${data.pasta || "—"}${data.pasta ? "점" : ""}</strong></div><div class="record-row"><span>달고나 뽑기</span><strong>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</strong></div><div class="record-row"><span>지하철 뛰어타기</span><strong>${data.subway || "—"}${data.subway ? "점" : ""}</strong></div>${STAGES.map((s, i) => `<div class="record-row"><span>${s.name}</span><strong>${data.drive[i] != null ? fmt(data.drive[i]) + "m" : "—"}</strong></div>`).join("")}<p class="muted small">자동차는 남은 거리가 작을수록 좋은 기록입니다.<br>추락한 기록은 최고 기록에서 제외합니다.</p><div class="dialog-actions"><button class="secondary" data-action="export">기록 내보내기</button><label class="secondary file-label">가져오기<input type="file" id="import" accept="application/json,.json"></label></div>`,
+    `<span class="eyebrow">MY RECORDS</span><h2>나의 최고 기록</h2><p class="muted">이 브라우저에 저장되는 개인 기록입니다.</p><label class="name-label">플레이어 이름<input id="player-name" value="${esc(data.name)}" maxlength="20"></label><button class="mini" data-action="name">이름 저장</button><div class="record-row"><span>맥주 잘 따르기</span><strong>${data.beer || "—"}${data.beer ? "점" : ""}</strong></div><div class="record-row"><span>파스타 만들기</span><strong>${data.pasta || "—"}${data.pasta ? "점" : ""}</strong></div><div class="record-row"><span>달고나 뽑기</span><strong>${data.dalgona || "—"}${data.dalgona ? "점" : ""}</strong></div><div class="record-row"><span>지하철 뛰어타기</span><strong>${data.subway || "—"}${data.subway ? "점" : ""}</strong></div><div class="record-row"><span>쑨에어 버터 랜딩</span><strong>${data.runway || "—"}${data.runway ? "점" : ""}</strong></div>${STAGES.map((s, i) => `<div class="record-row"><span>${s.name}</span><strong>${data.drive[i] != null ? fmt(data.drive[i]) + "m" : "—"}</strong></div>`).join("")}<p class="muted small">자동차는 남은 거리가 작을수록 좋은 기록입니다.<br>추락한 기록은 최고 기록에서 제외합니다.</p><div class="dialog-actions"><button class="secondary" data-action="export">기록 내보내기</button><label class="secondary file-label">가져오기<input type="file" id="import" accept="application/json,.json"></label></div>`,
   );
   $("#import").addEventListener("change", async (e) => {
     try {
@@ -409,6 +416,10 @@ function help() {
     openDialog('<span class="eyebrow">SSUN DALGONA</span><h2>달고나 뽑기</h2><p>모양을 고른 뒤 바로 뽑기로 곧장 바늘을 들거나, 직접 만들기로 설탕부터 녹여 보세요. 직접 잘 만든 달고나일수록 덜 깨져요.</p><h3>1. 설탕 녹이기</h3><p>화면을 누르고 있으면 국자가 연탄불에 올라가요. 누른 채 빙글빙글 저어야 고르게 녹습니다. 황금빛 구간에서 손을 떼세요. 너무 오래 두면 탑니다.</p><h3>2. 소다 넣기</h3><p>탭해서 소다를 넣고, 누른 채 빠르게 저어 부풀리세요. 알맞게 부풀었을 때 손을 떼면 됩니다.</p><h3>3. 누르기</h3><p>누르개를 아래로 끌어 납작하게 눌러요. 초록 구간이 딱 좋은 두께예요. 손을 떼면 모양 틀이 찍힙니다.</p><h3>4. 모양 뽑기</h3><p>바늘 끝은 손가락보다 조금 위에 있어서 손가락에 가리지 않아요. 빛나는 선 위에 손가락을 대면 바늘이 홈에 착 붙어요. 누른 채 선을 따라 여러 번 문질러 홈을 파세요. 긁는 곳이 금빛으로 빛나요. 한 구간이 다 파이면 바깥 조각이 헐거워지니 손가락으로 휙 밀어 치우세요. 많이 판 바깥쪽은 톡 쳐서 부러뜨릴 수도 있지만, 덜 팠으면 모양까지 같이 떨어질 수 있어요. 너무 빨리 긁거나 모양 안쪽을 긁으면 금 위험이 올라가고, 금이 모양 안으로 세 번 들어가면 깨져요.</p><h3>침 바르기</h3><p>침을 바르면 잠깐 동안 촉촉해져 잘 깨지지 않아요. 세 번까지 쓸 수 있습니다.</p><p>키보드: Space를 길게 눌러 녹이기·젓기·누르기, L로 침 바르기, Q로 바로 뽑기, Esc로 일시 정지. 모양 뽑기는 마우스나 터치로 해 주세요.</p>');
     return;
   }
+  if (k === "runway") {
+    openDialog('<span class="eyebrow">SSUN AIR · RWY 14R</span><h2>쑨에어 버터 랜딩</h2><p>김포 활주로 14R에서 이륙하고, 다시 돌아와 착륙하세요. 이륙 40% + 착륙 60%가 총점입니다.</p><h3>1. 이륙</h3><p>추력을 끝까지 올리면 속도가 붙어요. V1을 지나 VR(145kt)이 되면 기수를 천천히 드세요. VR보다 한참 일찍 들면 뜨지 못하고, 너무 늦으면 활주로를 벗어나요. 바퀴가 뜨기 전에 11°를 넘기면 테일스트라이크! 이륙 후 15°를 유지하며 300피트까지 상승하세요.</p><h3>2. 착륙</h3><p>3° 활공각에서 시작해요. PAPI(활주로 왼쪽 등 4개)가 흰색 2개·빨간색 2개면 정상, 흰색이 많으면 높고 빨간색이 많으면 낮아요. 측풍이 불면 바람 쪽으로 살짝 기울여 중심선을 지키세요. 50피트 아래에서 추력을 줄이고 기수를 살짝 들어 플레어하세요.</p><h3>착륙 등급</h3><p>버터 랜딩(120fpm 미만) · 좋은 착륙(300fpm 미만) · 단단한 착륙(600fpm 이하) · 하드 랜딩(600fpm 초과). 1000fpm 이상, 날개·꼬리가 닿거나 활주로를 벗어나면 크래시예요. 400피트 아래에서 불안정하면 관제탑이 복행을 지시합니다.</p><h3>조작</h3><p>키보드: W/↑ 기수 내리기 · S/↓ 기수 들기 · A/D 또는 ←/→ 기울이기 · Shift/+ 추력 올리기 · Ctrl/− 추력 줄이기 · Space 시작 · R 다시 시작 · Esc 일시 정지.</p><p>모바일: 화면을 끌면 조종간처럼 움직여요(아래로 끌면 기수 들기). 아래 버튼을 눌러도 되고, 📱 버튼으로 기기 기울기 조종을 켤 수 있어요.</p><p class="muted small">실제 항공사·공항 운영과 관계없는 가상의 비행입니다.</p>');
+    return;
+  }
   if (k === "beer") {
     beerHelp();
     return;
@@ -424,9 +435,11 @@ function share(boast = false) {
   const summary = boast && a.kind === "beer" ? beerShareSummary(a.g) : null;
   const text = t(a.kind === "subway" ? subwayShareText(r) : summary ? summary.text :
     !r
-      ? `${{ beer: "맥주 잘 따르기", drive: "부장님의 티코레이싱", pasta: "파스타 만들기", dalgona: "달고나 뽑기" }[a.kind]} — 쑨플레이에서 한 판 도전해 보세요!`
+      ? `${{ beer: "맥주 잘 따르기", drive: "부장님의 티코레이싱", pasta: "파스타 만들기", dalgona: "달고나 뽑기", runway: "쑨에어 버터 랜딩" }[a.kind]} — 쑨플레이에서 한 판 도전해 보세요!`
       : a.kind === "pasta"
       ? `${a.g.recipe.name} 파스타 완성! ${r.value}점\n칼질 ${r.chopScore} · 불 조절 ${r.heatScore} · 면 익힘 ${r.noodleScore} · 토스 ${r.tossScore}\nPERFECT ${r.perfects}/${r.slices} · COMBO ${r.maxCombo}`
+      : a.kind === "runway"
+      ? runwayShare(r)
       : a.kind === "dalgona"
       ? `달고나 ${a.g.shape.name} 뽑기 ${r.freed ? "성공" : "실패"}! ${r.value}점
 온전함 ${r.integrity} · 금 ${r.cracks} · ${r.time}초`
@@ -541,6 +554,7 @@ function route() {
   if (/^\/game\/subway\/?$/.test(p)) { mountSubway(); return; }
   if (/^\/game\/pasta\/?$/.test(p)) { mountPasta(); return; }
   if (/^\/game\/dalgona\/?$/.test(p)) { mountDalgona(); return; }
+  if (/^\/game\/runway\/?$/.test(p)) { mountRunway(); return; }
   if (/^\/game\/beer\/?$/.test(p)) {
     mountBeer();
     return;
@@ -587,6 +601,39 @@ function mountDalgona() {
   } catch (e) {
     console.error(e);
     app.querySelector('.dal-viewport').innerHTML = '<div class="pasta-error"><h2>3D 화면을 시작하지 못했습니다</h2><p>브라우저의 하드웨어 가속을 켜고 다시 접속해 주세요.</p><button data-action="retry">다시 시작</button></div>';
+  }
+  translatePage();
+}
+
+function runwayShare(r) {
+  const ld = r.landing, to = r.takeoff;
+  if (!ld) return `쑨에어 버터 랜딩 — 이륙 ${to?.ok ? to.value + "점" : "실패"}! 김포 14R에서 도전해 보세요.`;
+  if (ld.grade === "goaround") return "쑨에어 버터 랜딩 — 고 어라운드! 다음엔 꼭 내려앉을게요.";
+  const grade = { butter: "버터 랜딩!", good: "좋은 착륙", firm: "단단한 착륙", hard: "하드 랜딩", crash: "크래시!" }[ld.grade];
+  return `쑨에어 버터 랜딩 ${r.value}점 · ${grade}\n접지 강하율 ${ld.fpm}fpm · 중심선 오차 ${Math.abs(ld.centerline).toFixed(1)}m · 접지 위치 ${ld.distance >= 0 ? "+" : ""}${ld.distance}m`;
+}
+
+function mountRunway(stage = "takeoff") {
+  clean();
+  document.body.classList.add("playing");
+  document.title = "쑨에어 버터 랜딩 | 쑨플레이";
+  try {
+    const controller = new RunwayController({ app, header: header("runway"), modal, stage, sound: () => !muted, onResult: (result) => {
+      let best = false;
+      if (result.complete && result.value > (data.runway || 0)) {
+        data.runway = result.value;
+        best = true;
+      }
+      data.history.unshift({ ...result, at: Date.now(), name: data.name });
+      data.history = data.history.slice(0, 60);
+      save();
+      return best;
+    } });
+    active = { kind: "runway", g: controller.g, controller };
+    views = [controller];
+  } catch (e) {
+    console.error(e);
+    app.innerHTML = header("runway") + '<main id="main" class="game-shell runway"><div class="result-overlay"><section class="result-card"><h2>3D 화면을 시작하지 못했습니다</h2><p>브라우저의 하드웨어 가속을 켜고 다시 접속해 주세요.</p><a href="/" data-nav class="primary">홈으로</a></section></div></main>';
   }
   translatePage();
 }
