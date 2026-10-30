@@ -18,7 +18,7 @@ export const VEHICLES = {
     hub: -0.17,
     power: 1,
     height: 1.3,
-    color: 0xe8322c,
+    color: 0xf4f4f0,
   },
   kei: {
     mass: 700,

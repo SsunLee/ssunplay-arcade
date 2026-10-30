@@ -1,7 +1,7 @@
 // Spanish column for i18n.js, in the same order as its rows.
 export const ES = [
  'SSUNPLAY','Un poco raros. Todo en 3D.','Un poco raros.','Gestos pequeños. Momentos grandes.','Sin instalar. Solo juega.',
- "El trago perfecto","Chicken Drive","Pasta Studio","Pasta, a tu manera.",
+ "El trago perfecto","Carreras en Tico del jefe","Pasta Studio","Pasta, a tu manera.",
  'Mis récords','Cómo jugar','Ayuda','Pantalla completa','Activar/desactivar sonido','Idioma','Saltar al contenido','Todos los juegos','Reiniciar','En pausa','Continuar','Cerrar',
  'Inclina para servir. Termina con espuma.','Tu caña perfecta.','Mantén pulsado y arrastra a los lados para inclinar','Izquierda para inclinar · Derecha para enderezar','Mantén para servir · Suelta para parar',
  'La primera tras el trabajo','Limpia y fresca','Final suave','¡Bien fría y llena, con dos dedos de espuma!','Poca espuma y mucha cerveza, por favor.','Un poco más de espuma cremosa, por favor.',
@@ -16,7 +16,7 @@ export const ES = [
  "Tira hacia abajo y suelta para arrancar","¿Puedes frenar justo al borde?","Tira hacia abajo y suelta","Una vez arrancas, no hay frenos",
  "Todo es cuestión de fuerza. Cuidado con las ruedas y el equilibrio en el borde.","Controles ?",
  "Espera… ¿aguantará?","¡Aaaaaah!","Contén la respiración…","¡El jefe se cayó!","¡Por los pelos!","¡Frenada segura!","¡Chof!",
- "Con un poco menos de fuerza…","¡Asomado al borde, pero en equilibrio!","Distancia al borde. Intenta acercarte más.","El jefe salió volando del acantilado en Chicken Drive…","Distancia al borde",
+ "Con un poco menos de fuerza…","¡Asomado al borde, pero en equilibrio!","Distancia al borde. Intenta acercarte más.","Carreras en Tico del jefe — el jefe salió volando del acantilado…","Distancia al borde",
  "Mis mejores récords","Récords personales guardados en este navegador.","Nombre del jugador","Guardar nombre","Exportar récords","Importar","Jugador","En la conducción, cuanto menor la distancia, mejor.","Las caídas no cuentan como récord.",
  'Récords importados.','Elige un archivo de récords de SSUNPLAY válido.','Nombre guardado.','No queda espacio. Exporta tus récords.','No se pudo cargar la vista previa 3D.','No se pudo iniciar la escena 3D.','No se pudo iniciar la escena 3D','Activa la aceleración por hardware del navegador y vuelve a intentarlo.','Inicio','Este navegador no admite pantalla completa.',
  'Bienvenido a SSUNPLAY','Bienvenido a SSUNPLAY','Teclado','Servir e inclinar','Completar un pedido',

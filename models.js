@@ -174,7 +174,7 @@ export function bujangModel(F, scale = 1) {
   return g;
 }
 export function carModel(F, spec, type = "sedan") {
-  // "sedan" stages drive a Daewoo Tico; cabins are open shells so the driver shows through the glass
+  // "sedan" stages drive a white open-top Daewoo Tico so the driver shows from the chase camera; other cabins are open shells behind glass
   const g = new T.Group(),
     color = spec.color,
     dark = 0x20272e,
@@ -248,7 +248,7 @@ export function carModel(F, spec, type = "sedan") {
     }
     F.cube(g, [1.35, 0.1, 1.5], [-0.86, 0.31, 0], 0x88949a);
   } else if (tico) {
-    // short hood, tall boxy greenhouse, 3-door hatch with a near-vertical tailgate
+    // short hood, roof chopped off: only the windshield and its frame stand above the doors
     F.cube(g, [3.45, 0.21, width - 0.02], [-0.375, 0.415, 0], color, true);
     const hood = F.cube(
       g,
@@ -258,30 +258,20 @@ export function carModel(F, spec, type = "sedan") {
       true,
     );
     hood.rotation.z = -0.09;
-    F.cube(g, [2.95, 0.07, width - 0.08], [-0.55, 1.015, 0], color, true);
+    F.rod(g, [0.9, 0.99, -0.8], [0.9, 0.99, 0.8], 0.04, color);
+    F.cube(g, [0.5, 0.1, width - 0.1], [-1.86, 0.57, 0], color, true);
     F.cube(g, [3.3, 0.01, width - 0.14], [-0.4, 0.527, 0], 0x2a2d31);
     F.cube(g, [0.32, 0.14, width - 0.2], [1.08, 0.57, 0], 0x2a2d31, true);
     const wind = F.cube(g, [0.035, 0.63, width - 0.16], [1.11, 0.75, 0], glass);
     wind.rotation.z = 0.74;
-    const hatch = F.cube(
-      g,
-      [0.035, 0.43, width - 0.3],
-      [-2.03, 0.76, 0],
-      glass,
-    );
-    hatch.rotation.z = -0.23;
     for (const s of [-1, 1]) {
       const z = s * 0.81;
-      F.cube(g, [1.45, 0.42, 0.03], [0.22, 0.75, z], glass);
-      F.cube(g, [0.85, 0.42, 0.03], [-1.05, 0.75, z], glass);
       F.rod(g, [1.32, 0.52, z], [0.9, 0.99, z], 0.04, color);
-      F.cube(g, [0.08, 0.46, 0.05], [-0.55, 0.75, z], dark);
-      F.cube(g, [0.48, 0.46, 0.05], [-1.74, 0.75, z], color, true);
-      F.rod(g, [-2.08, 0.52, s * 0.76], [-1.98, 0.99, s * 0.76], 0.04, color);
+      F.cube(g, [3.2, 0.05, 0.07], [-0.45, 0.545, z], color, true);
       const back = F.cube(
         g,
-        [0.1, 0.5, 0.46],
-        [-0.42, 0.6, s * 0.4],
+        [0.1, 0.34, 0.46],
+        [-0.46, 0.55, s * 0.4],
         0x4b4f55,
         true,
       );
@@ -308,6 +298,10 @@ export function carModel(F, spec, type = "sedan") {
     F.cube(g, [0.02, 0.1, 0.34], [2.225, -0.04, 0], 0x3f8a4f);
     F.cube(g, [0.02, 0.11, 0.34], [-2.16, 0.12, 0], 0x3f8a4f);
     F.rod(g, [1.0, 0.52, 0.72], [0.78, 1.32, 0.76], 0.008, dark);
+    const wheel = new T.TorusGeometry(0.14, 0.018, 6, 18);
+    wheel.rotateY(Math.PI / 2);
+    wheel.rotateZ(-0.5);
+    F.mesh(wheel, dark, g, [0.48, 0.8, 0.38]);
   } else {
     F.cube(g, [1.65, 0.15, width - 0.1], [1.15, 0.37, 0], color, true);
     F.cube(g, [0.65, 0.17, width - 0.08], [-1.6, 0.39, 0], color, true);
@@ -396,7 +390,7 @@ export function carModel(F, spec, type = "sedan") {
   const seat = {
       bus: [4.0, 0.95, 0.5, 1.4],
       kei: [0.55, 0.36, 0.38, 0.9],
-      sedan: [-0.15, 0.22, 0.38, 0.95],
+      sedan: [-0.22, 0.3, 0.38, 1.25],
     }[type] || [-0.42, 0.66, 0.4, 0.85],
     driver = bujangModel(F, seat[3]);
   driver.position.set(seat[0], seat[1], seat[2]);
