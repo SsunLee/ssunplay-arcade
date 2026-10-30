@@ -1,9 +1,11 @@
 import * as T from "three";
 import { Factory, noiseTexture } from "./models.js";
-import { RWY, DEG, rng } from "./runway-engine.js";
+import { RWY, DEG, rng, clamp } from "./runway-engine.js";
 // World frame matches the engine: x along runway 14R, y up, z to the right of the centreline.
-const V = new T.Vector3(), LOOK = new T.Vector3(), L = RWY.length, W = RWY.width;
+const V = new T.Vector3(), LOOK = new T.Vector3(), L = RWY.length, W = RWY.width, Q = new T.Quaternion();
 const lerp = (a, b, k) => a + (b - a) * k;
+const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const approach = (v, target, rate, dt) => v + clamp(target - v, -rate * dt, rate * dt);
 
 function canvasTexture(w, h, draw) {
   const c = document.createElement("canvas");
@@ -40,12 +42,37 @@ const finGeometry = () => {
   return g;
 };
 
+/**
+ * A hinged control surface. The hinge runs from `a` to `b` (body frame, a→b along +z or +y);
+ * the panel trails aft of the hinge by `chord`. Returns the pivot: rotation.z (or .y for a
+ * vertical hinge) deflects it, positive = trailing edge down (or to the right).
+ */
+function controlSurface(F, parent, a, b, chord, thick, mat, vertical = false) {
+  const A = new T.Vector3(...a), B = new T.Vector3(...b), mount = new T.Group(), pivot = new T.Group();
+  mount.position.copy(A).add(B).multiplyScalar(0.5);
+  mount.quaternion.copy(Q.setFromUnitVectors(vertical ? new T.Vector3(0, 1, 0) : new T.Vector3(0, 0, 1), B.clone().sub(A).normalize()));
+  parent.add(mount);
+  mount.add(pivot);
+  const len = A.distanceTo(B);
+  F.mesh(new T.BoxGeometry(chord, vertical ? len : thick, vertical ? thick : len), mat, pivot, [-chord / 2, 0, 0]);
+  // a dark hinge line so the panel reads as a separate, moving part
+  F.mesh(new T.BoxGeometry(0.1, vertical ? len : thick + 0.04, vertical ? thick + 0.04 : len), mat.userData.edge, pivot, [-0.02, 0, 0]).castShadow = false;
+  return pivot;
+}
+
 /** Twin-engine single-aisle jet in a fictional SSUN AIR livery. Origin at the main wheels, nose +x. */
 export function airlinerModel(F) {
   const plane = new T.Group(), body = new T.Group();
   plane.add(body);
+  // longer gear legs lift the airframe so the tail clears the runway up to the 13° tailstrike limit
+  const lift = 0.8;
+  body.position.y = lift;
   const white = F.mat(0xf6f7f4, 0.45, 0.1), grey = F.mat(0xb9bfc2, 0.5, 0.35), dark = F.mat(0x22282d, 0.4, 0.2),
     green = F.mat(0x2f6b52, 0.5, 0.05), yellow = F.mat(0xf6d24a, 0.5, 0.05), glass = F.mat(0x18232c, 0.15, 0.6);
+  // wings a shade darker than the fuselage, with metal leading edges and bright moving surfaces
+  const wingMat = F.mat(0xdfe5e9, 0.5, 0.15), edgeMat = F.mat(0x7d878e, 0.35, 0.55),
+    flapMat = F.mat(0xa9b4bb, 0.5, 0.3), spoilerMat = F.mat(0x8c979e, 0.5, 0.3), moveMat = F.mat(0xf2b632, 0.45, 0.05);
+  for (const m of [flapMat, spoilerMat, moveMat]) m.userData.edge = dark;
   const cy = 4;
   const fus = F.mesh(new T.CylinderGeometry(2, 2, 24, 28), white, body, [0, cy, 0]);
   fus.rotation.z = Math.PI / 2;
@@ -57,7 +84,7 @@ export function airlinerModel(F) {
   const cp = cone.attributes.position;
   for (let i = 0; i < cp.count; i++) {
     const k = (cp.getY(i) + 4.75) / 9.5;
-    cp.setX(i, cp.getX(i) + k * k * 1.9); // local +x becomes world up after the turn below
+    cp.setX(i, cp.getX(i) + k * 0.6 + k * k * 1.3); // local +x becomes world up after the turn below
   }
   cone.computeVertexNormals();
   cone.rotateZ(Math.PI / 2);
@@ -96,13 +123,27 @@ export function airlinerModel(F) {
     m.castShadow = false;
   }
   // wings with sharklets, engines and pylons
-  const wing = { rootLE: 2.4, rootTE: -5.2, tipLE: -5.6, tipTE: -7.3, span: 17, dihedral: 5 };
+  const wing = { rootLE: 2.4, rootTE: -5.2, tipLE: -5.6, tipTE: -7.3, span: 17, dihedral: 5 }, dih = Math.tan(5 * DEG);
+  // hinge point on the wing at span fraction f, `fwd` metres ahead of the trailing edge, on the upper skin if `top`
+  const wingAt = (f, s, fwd, top = false) => [lerp(wing.rootTE, wing.tipTE, f) + fwd, 2.75 + f * 17 * dih + (top ? lerp(0.35, 0.12, f) / 2 + 0.03 : 0), s * f * 17];
+  const surf = { ailerons: [], flaps: [], spoilers: [], elevators: [], rudder: null };
   for (const s of [-1, 1]) {
-    F.mesh(wingGeometry({ ...wing, side: s }), white, body, [0, 2.75, 0]);
+    F.mesh(wingGeometry({ ...wing, side: s }), wingMat, body, [0, 2.75, 0]);
+    F.mesh(wingGeometry({ rootLE: 2.5, rootTE: 1.6, tipLE: -5.5, tipTE: -6.0, span: 17, thick: 0.4, tipThick: 0.16, dihedral: 5, side: s }), edgeMat, body, [0, 2.75, 0]).castShadow = false;
+    // hinges always run toward +z so a positive deflection is trailing-edge down on both wings
+    const span = (f0, f1, fwd, top) => (s > 0 ? [wingAt(f0, s, fwd, top), wingAt(f1, s, fwd, top)] : [wingAt(f1, s, fwd, top), wingAt(f0, s, fwd, top)]);
+    const thickAt = (f) => lerp(0.35, 0.12, f) + 0.06;
+    surf.ailerons.push({ side: s, pivot: controlSurface(F, body, ...span(0.62, 0.93, 1.1), 1.1, thickAt(0.78), moveMat) });
+    for (const [f0, f1] of [[0.13, 0.31], [0.38, 0.6]]) {
+      surf.flaps.push(controlSurface(F, body, ...span(f0, f1, 1.7), 1.7, thickAt((f0 + f1) / 2), flapMat));
+      surf.spoilers.push(controlSurface(F, body, ...span(f0 + 0.02, f1 - 0.02, 3.1, true), 1.35, 0.08, spoilerMat));
+    }
     const tipY = 2.75 + 17 * Math.tan(5 * DEG);
     const winglet = F.mesh(wingGeometry({ rootLE: -5.5, rootTE: -7.3, tipLE: -7.1, tipTE: -7.9, span: 2.2, thick: 0.14, tipThick: 0.08, side: 1 }), green, body, [0, tipY, s * 17]);
     winglet.rotation.x = -Math.PI / 2 + s * 0.25;
-    F.mesh(wingGeometry({ rootLE: -13, rootTE: -16.6, tipLE: -17.4, tipTE: -18.8, span: 6.2, thick: 0.22, tipThick: 0.1, dihedral: 6, side: s }), white, body, [0, cy + 0.6, 0]);
+    F.mesh(wingGeometry({ rootLE: -13, rootTE: -16.6, tipLE: -17.4, tipTE: -18.8, span: 6.2, thick: 0.22, tipThick: 0.1, dihedral: 6, side: s }), wingMat, body, [0, cy + 0.6, 0]);
+    const stab = (f) => [lerp(-16.6, -18.8, f) + 0.9, cy + 0.6 + f * 6.2 * Math.tan(6 * DEG), s * f * 6.2];
+    surf.elevators.push(controlSurface(F, body, ...(s > 0 ? [stab(0.12), stab(0.95)] : [stab(0.95), stab(0.12)]), 0.9, 0.24, moveMat));
     // flap track fairings
     for (const z of [3.6, 8.4, 12]) F.cube(body, [2.4, 0.4, 0.3], [lerp(-5.2, -7.3, z / 17) - 0.6, 2.55 + z * 0.087, s * z], grey, true);
     const eng = new T.Group();
@@ -126,6 +167,7 @@ export function airlinerModel(F) {
   // vertical fin with the sun-and-S tail logo
   const fin = F.mesh(finGeometry(), green, body, [0, cy + 1.6, 0]);
   fin.castShadow = true;
+  surf.rudder = controlSurface(F, body, [-19.4 + 1.3 - 0.15, cy + 1.9, 0], [-21.6 + 1.3 - 0.05, cy + 1.6 + 6.3, 0], 1.3, 0.44, moveMat, true);
   const logo = canvasTexture(256, 256, (c, w) => {
     c.fillStyle = "#f6d24a";
     c.beginPath();
@@ -145,16 +187,17 @@ export function airlinerModel(F) {
   }
   // landing gear (retractable)
   const gear = new T.Group();
+  gear.position.y = -lift;
   body.add(gear);
   const tyre = new T.CylinderGeometry(0.58, 0.58, 0.42, 18);
   tyre.rotateX(Math.PI / 2);
   for (const s of [-1, 1]) {
-    F.rod(gear, [0, 0.6, s * 3.8], [0.1, 2.6, s * 3.6], 0.17, grey);
+    F.rod(gear, [0, 0.6, s * 3.8], [0.1, 2.6 + lift, s * 3.6], 0.17, grey);
     for (const o of [-0.28, 0.28]) F.mesh(tyre, dark, gear, [0, 0.58, s * 3.8 + o]);
   }
   const noseTyre = new T.CylinderGeometry(0.4, 0.4, 0.28, 16);
   noseTyre.rotateX(Math.PI / 2);
-  F.rod(gear, [11, 0.42, 0], [11.1, 2.4, 0], 0.13, grey);
+  F.rod(gear, [11, 0.42, 0], [11.1, 2.4 + lift, 0], 0.13, grey);
   for (const o of [-0.2, 0.2]) F.mesh(noseTyre, dark, gear, [11, 0.4, o]);
   // navigation lights
   const lamp = (color, pos) => {
@@ -167,7 +210,7 @@ export function airlinerModel(F) {
   const strobe = lamp(0xffffff, [-21.2, cy + 0.6, 0]);
   const beacon = lamp(0xff2020, [-2, cy + 2.05, 0]);
   const landing = [lamp(0xfff6d8, [1.6, 2.6, 2.4]), lamp(0xfff6d8, [1.6, 2.6, -2.4])];
-  plane.userData = { body, gear, strobe, beacon, landing };
+  plane.userData = { body, gear, strobe, beacon, landing, surf, deflect: { aileron: 0, elevator: 0, rudder: 0, flaps: 0, spoilers: 0 } };
   plane.rotation.order = "YZX";
   return plane;
 }
@@ -407,6 +450,27 @@ export class RunwayView {
       this.puff(160, 6, 3.5);
     }
   }
+  /** Ailerons, elevators and rudder follow the controls; flaps and spoilers follow the phase of flight. */
+  animateSurfaces(dt) {
+    const g = this.game, a = g.ac, u = this.plane.userData, d = u.deflect, S = u.surf, to = g.stage === "takeoff";
+    const ldgReason = g.landing?.reason, onGround = a.h <= 0.05;
+    let rudder;
+    if (to && a.ground) rudder = -g.wind.cross * 1.6; // hold the centreline against the crosswind
+    else if (!to && (g.phase === "roll" || (onGround && g.phase === "result")) || (!to && a.h < 8)) rudder = -g.crab * 3; // kick out the crab
+    else rudder = g.ctl.roll * 6;
+    const flaps = to ? (g.phase === "ready" || a.ground || g.altFt < 150 ? 15 : 0) : g.phase === "clear" || ldgReason === "goaround" ? 15 : 32;
+    const spoilers = onGround && (g.phase === "roll" || (g.phase === "result" && ldgReason !== "goaround" && (!to || g.takeoff?.ok === false))) ? 55 : 0;
+    d.aileron = approach(d.aileron, g.ctl.roll * 22, 90, dt);
+    d.elevator = approach(d.elevator, g.ctl.pitch * 22, 90, dt);
+    d.rudder = approach(d.rudder, clamp(rudder, -25, 25), 40, dt);
+    d.flaps = this.cameraReady ? approach(d.flaps, flaps, 6, dt) : flaps;
+    d.spoilers = approach(d.spoilers, spoilers, 120, dt);
+    for (const s of S.ailerons) s.pivot.rotation.z = -s.side * d.aileron * DEG;
+    for (const p of S.elevators) p.rotation.z = -d.elevator * DEG;
+    for (const p of S.flaps) p.rotation.z = d.flaps * DEG;
+    for (const p of S.spoilers) p.rotation.z = -d.spoilers * DEG;
+    S.rudder.rotation.y = d.rudder * DEG;
+  }
   resize() {
     const r = this.canvas.getBoundingClientRect();
     this.width = Math.max(1, r.width);
@@ -421,6 +485,7 @@ export class RunwayView {
     p.position.set(a.x, Math.max(0, a.h), a.z);
     p.rotation.set(a.bank * DEG, -a.psi, a.pitch * DEG);
     u.gear.visible = a.gear;
+    this.animateSurfaces(dt);
     u.strobe.visible = Math.sin(this.clock * 7) > 0.85;
     u.beacon.visible = Math.sin(this.clock * 4.2 + 1) > 0.4;
     // PAPI shows what the pilot's eye sees
@@ -430,8 +495,14 @@ export class RunwayView {
     const wdir = (g.wind.dir - RWY.heading) * DEG;
     this.sockRoot.rotation.y = Math.PI - wdir;
     this.sock.rotation.x = Math.sin(this.clock * 3) * 0.08;
-    // camera: chase behind along the runway so the crab angle and the runway are both visible
-    const portrait = this.camera.aspect < 0.8, back = portrait ? 78 : 58, up = portrait ? 15 : 12;
+    // camera: chase behind along the runway so the crab angle and the runway are both visible.
+    // Distances fit the wingspan to the screen width, so portrait phones sit further back.
+    const portrait = this.camera.aspect < 0.8, fit = (half) => half / (Math.tan((this.camera.fov / 2) * DEG) * this.camera.aspect),
+      back = Math.max(44, fit(21)), up = portrait ? 14 : 11;
+    // takeoff roll: tuck in low behind the tail as the speed builds, then ease back out from rotation
+    const close = g.stage === "takeoff" && g.phase === "fly" && a.ground ? smooth(15, 90, g.ias) * (1 - smooth(1, 9, a.pitch)) : 0;
+    this.close = this.cameraReady ? approach(this.close ?? 0, close, close > (this.close ?? 0) ? 0.5 : 0.3, dt) : close;
+    const c = smooth(0, 1, this.close), cBack = lerp(back, Math.max(32, fit(17)), c), cUp = lerp(up, 7.5, c);
     if (this.preview) {
       V.set(a.x + 34, 9, a.z + 46);
       LOOK.set(a.x - 2, 4, a.z);
@@ -440,8 +511,8 @@ export class RunwayView {
       V.set(a.x + Math.cos(k) * 70 - 20, Math.max(6, a.h + 14), a.z + Math.sin(k) * 70 + 30);
       LOOK.set(a.x, Math.max(2, a.h + 3), a.z);
     } else if (g.stage === "takeoff") {
-      V.set(a.x - back, Math.max(a.h, 0) + up - 2, a.z + (portrait ? 0 : 6));
-      LOOK.set(a.x + 60, Math.max(a.h, 0) + 2, a.z);
+      V.set(a.x - cBack, Math.max(a.h, 0) + cUp - 2 * (1 - c), a.z + (portrait ? 0 : lerp(6, 5, c)));
+      LOOK.set(a.x + lerp(60, 70, c), Math.max(a.h, 0) + lerp(2, 1, c), a.z);
     } else {
       const ahead = 320;
       V.set(a.x - back, a.h + up, a.z * 0.85);

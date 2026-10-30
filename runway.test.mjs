@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, KT, FT, GRADES, FAILURES,
+  RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, MAX_CROSS, SINK_GRADES, KT, FT, GRADES, FAILURES,
   landingGrade, scoreLanding, scoreTakeoff, totalScore, papiLights, windComponents, formatWind, glideslopeDots, localizerDots,
 } from "./runway-engine.js";
 
@@ -12,6 +12,8 @@ const step = (g, fn, seconds = 120) => {
   }
   return g;
 };
+/** Advance `seconds` of flight in small steps (update() caps a single frame at 0.25 s). */
+const run = (g, seconds) => { for (let i = 0; i < Math.round(seconds * 120); i++) g.update(1 / 120); return g; };
 /** Full thrust, then rotate toward `target` pitch once IAS reaches `rotateKt`. */
 const takeoff = (g, rotateKt = V_SPEEDS.vr, target = 15) => {
   g.start();
@@ -33,25 +35,28 @@ const land = (g, { flare = true } = {}) => {
 };
 
 test("landing grades follow the sink-rate bands", () => {
+  assert.deepEqual(SINK_GRADES, { butter: 180, good: 400, firm: 750, crash: 1200 });
   assert.equal(landingGrade(60), "butter");
-  assert.equal(landingGrade(119), "butter");
-  assert.equal(landingGrade(120), "good");
-  assert.equal(landingGrade(299), "good");
-  assert.equal(landingGrade(300), "firm");
-  assert.equal(landingGrade(600), "firm");
-  assert.equal(landingGrade(601), "hard");
-  assert.equal(landingGrade(999), "hard");
-  assert.equal(landingGrade(1000), "crash");
+  assert.equal(landingGrade(179), "butter");
+  assert.equal(landingGrade(180), "good");
+  assert.equal(landingGrade(399), "good");
+  assert.equal(landingGrade(400), "firm");
+  assert.equal(landingGrade(749), "firm");
+  assert.equal(landingGrade(750), "hard");
+  assert.equal(landingGrade(1000), "hard");
+  assert.equal(landingGrade(1199), "hard");
+  assert.equal(landingGrade(1200), "crash");
   assert.equal(landingGrade(80, true), "crash");
   assert.equal(GRADES.butter, "버터 랜딩!");
   assert.equal(GRADES.hard, "하드 랜딩");
 });
 
 test("landing score rewards a soft, centred touchdown at the aiming point", () => {
-  const perfect = scoreLanding({ fpm: 90, centerline: 0.4, distance: 20 });
+  const perfect = scoreLanding({ fpm: 170, centerline: 0.4, distance: 20 });
   assert.equal(perfect.value, 100);
   assert.equal(perfect.grade, "butter");
-  const firm = scoreLanding({ fpm: 420, centerline: 6, distance: 250 });
+  const firm = scoreLanding({ fpm: 520, centerline: 6, distance: 250 });
+  assert.equal(firm.grade, "firm");
   assert.ok(firm.value < perfect.value && firm.value > 0);
   assert.ok(scoreLanding({ fpm: 200, centerline: 0, distance: 0 }).sink > scoreLanding({ fpm: 500, centerline: 0, distance: 0 }).sink);
   assert.ok(scoreLanding({ fpm: 100, centerline: 2, distance: 0 }).line > scoreLanding({ fpm: 100, centerline: -10, distance: 0 }).line);
@@ -64,7 +69,11 @@ test("landing score rewards a soft, centred touchdown at the aiming point", () =
 test("takeoff score peaks at VR with a 15° climb", () => {
   assert.equal(scoreTakeoff({ rotateKt: V_SPEEDS.vr, climbPitch: 15, endKt: V_SPEEDS.v2 + 10 }).value, 100);
   const late = scoreTakeoff({ rotateKt: V_SPEEDS.vr + 12, climbPitch: 15, endKt: V_SPEEDS.v2 + 10 });
-  assert.ok(late.rotation < 15);
+  assert.ok(late.rotation < 20);
+  // rotating a little early is forgiven more than rotating late
+  assert.equal(scoreTakeoff({ rotateKt: V_SPEEDS.vr - 5, climbPitch: 15, endKt: V_SPEEDS.v2 + 10 }).rotation, 50);
+  const early = scoreTakeoff({ rotateKt: V_SPEEDS.vr - ROTATE_EARLY, climbPitch: 15, endKt: V_SPEEDS.v2 + 10 });
+  assert.ok(early.rotation >= 40 && early.rotation > scoreTakeoff({ rotateKt: V_SPEEDS.vr + 10, climbPitch: 15, endKt: V_SPEEDS.v2 + 10 }).rotation);
   assert.ok(scoreTakeoff({ rotateKt: V_SPEEDS.vr, climbPitch: 22, endKt: 162 }).pitch < 15);
   assert.equal(scoreTakeoff({ failed: "tailstrike" }).value, 0);
   assert.equal(totalScore(100, 100), 100);
@@ -90,10 +99,13 @@ test("wind is split into headwind and crosswind and formatted like ATIS", () => 
   assert.ok(windComponents(RWY.heading - 90, 10).cross < -9.99);
   assert.equal(formatWind(220, 12), "220/12KT");
   assert.equal(formatWind(0, 5), "360/05KT");
-  for (let s = 1; s < 30; s++) {
+  assert.equal(MAX_CROSS, 8);
+  for (let s = 1; s < 200; s++) {
     const g = new RunwayGame(s);
     assert.ok(g.windLDG.head > 0, "landing wind is never a tailwind");
-    assert.ok(g.windLDG.speed >= 8 && g.windLDG.speed <= 18);
+    assert.ok(g.windLDG.speed >= 4 && g.windLDG.speed <= 14, `seed ${s}: ${g.windLDG.speed}`);
+    assert.ok(Math.abs(g.windLDG.cross) <= MAX_CROSS + 1e-9, `seed ${s}: crosswind ${g.windLDG.cross}`);
+    assert.ok(Math.abs(g.windTO.cross) <= 6 + 1e-9);
   }
 });
 
@@ -103,21 +115,37 @@ test("rotating at VR to 15° makes a clean takeoff", () => {
   assert.equal(g.takeoff.ok, true);
   assert.ok(g.takeoff.value >= 90, `score ${g.takeoff.value}`);
   assert.ok(g.takeoff.maxGroundPitch < TAIL_LIMIT);
+  assert.ok(TAIL_LIMIT >= 13);
   assert.ok(g.events.some((e) => e.type === "callout" && e.text === "V1"));
   assert.ok(g.events.some((e) => e.type === "callout" && e.text === "ROTATE"));
   assert.ok(g.events.some((e) => e.type === "atc" && /cleared for takeoff/.test(e.en)));
 });
 
 test("over-pitching on the runway is a tailstrike", () => {
-  // yank the nose up hard right at VR and keep pulling
+  // pull hard and keep pulling without takeoff thrust: the wheels stay down while the nose passes the limit
   const g = new RunwayGame(2);
   g.start();
   g.setThrottle(1);
-  step(g, (x) => x.setInput(x.ias >= V_SPEEDS.vr - 10 ? 1 : 0, 0, 0));
+  step(g, (x) => {
+    if (x.ias >= V_SPEEDS.vr - 15) x.setThrottle(0.6);
+    x.setInput(x.ias >= V_SPEEDS.vr - ROTATE_EARLY ? 1 : 0, 0, 0);
+  });
   assert.equal(g.phase, "result");
   assert.equal(g.takeoff.reason, "tailstrike");
   assert.equal(g.takeoff.value, 0);
   assert.equal(FAILURES.tailstrike, "테일스트라이크!");
+});
+
+test("the rotation window is forgiving: from VR-10 kt a full pull still flies", () => {
+  for (const kt of [V_SPEEDS.vr - ROTATE_EARLY, V_SPEEDS.vr - 5, V_SPEEDS.vr]) {
+    // yank and keep pulling, then let go once the nose is high
+    const g = new RunwayGame(2);
+    g.start();
+    g.setThrottle(1);
+    step(g, (x) => x.setInput(x.ias >= kt && x.ac.pitch < 16 ? 1 : 0, 0, 0));
+    assert.equal(g.phase, "clear", `rotate at ${kt}: ${g.takeoff?.reason}`);
+    assert.ok(g.takeoff.value >= 70, `rotate at ${kt}: ${g.takeoff.value}`);
+  }
 });
 
 test("rotating far too early fails to lift; never rotating overruns the runway", () => {
@@ -164,6 +192,97 @@ test("no flare or diving at the runway is hard or a crash; wandering off gets a 
   if (drift.landing.grade === "goaround") assert.ok(goAround);
 });
 
+test("pitch damping: the nose answers the stick smoothly, not instantly", () => {
+  const g = new RunwayGame(7, { stage: "landing" });
+  g.start();
+  const p0 = g.ac.pitch;
+  g.setInput(1, 0, 0);
+  run(g, 0.1);
+  assert.ok(g.ac.pitch - p0 < 0.3 * 0.6, `after 0.1 s ${g.ac.pitch - p0}`);
+  run(g, 0.9);
+  assert.ok(g.ac.pitch - p0 > 2, `after 1 s ${g.ac.pitch - p0}`);
+  assert.equal(g.ctl.pitch, 1);
+  // let go: the rate decays instead of stopping dead
+  g.setInput(0, 0, 0);
+  const p1 = g.ac.pitch;
+  g.update(1 / 60);
+  assert.ok(g.ac.pitch > p1);
+});
+
+test("assist: wings level slowly without roll input, and the ailerons show it", () => {
+  const g = new RunwayGame(3, { stage: "landing" });
+  g.start();
+  g.ac.bank = 20;
+  g.update(1 / 60);
+  assert.ok(g.ctl.roll < 0, "ailerons roll back toward level");
+  assert.equal(g.assistInfo.roll, true);
+  run(g, 1);
+  assert.ok(g.ac.bank > 10, `levels gently, not instantly: ${g.ac.bank}`);
+  run(g, 4);
+  assert.ok(Math.abs(g.ac.bank) <= 5.5, `bank ${g.ac.bank}`);
+  // any roll input takes over at once
+  g.setInput(0, 1, 0);
+  g.update(1 / 60);
+  assert.equal(g.assistInfo.roll, false);
+  assert.ok(g.ctl.roll > 0.5);
+  const raw = new RunwayGame(3, { stage: "landing", assist: false });
+  assert.equal(raw.assist, false);
+});
+
+test("assist: hands off, the approach is nudged onto the localizer and glideslope", () => {
+  for (const seed of [1, 3, 5]) {
+    const fly = (assist) => {
+      const g = new RunwayGame(seed, { stage: "landing", assist });
+      g.start();
+      g.ac.z = 35; // start off the centreline, a little high and slow
+      g.ac.pitch += 1.5;
+      g.throttle *= 0.6;
+      let at200 = null;
+      step(g, (x) => { if (!at200 && x.altFt < 200) at200 = { loc: x.locDots, gs: x.gsDots, kt: x.ias }; });
+      return { g, at200 };
+    };
+    const on = fly(true), off = fly(false);
+    assert.ok(Math.abs(on.at200.loc) < 0.15, `seed ${seed}: loc ${on.at200.loc}`);
+    assert.ok(Math.abs(on.at200.gs) < 0.5, `seed ${seed}: gs ${on.at200.gs}`);
+    assert.ok(Math.abs(on.at200.kt - VAPP) < 8, `seed ${seed}: ias ${on.at200.kt}`);
+    assert.ok(Math.abs(off.at200.loc) > Math.abs(on.at200.loc) * 3);
+    assert.ok(Math.abs(on.g.landing.centerline) < 3, `seed ${seed}: ${on.g.landing.centerline}`);
+    // the flare is still the pilot's job: no hands-off butter
+    assert.ok(!["butter", "good"].includes(on.g.landing.grade), `seed ${seed}: ${on.g.landing.grade}`);
+    assert.ok(on.g.landing.value > off.g.landing.value);
+  }
+});
+
+test("assist: the auto-throttle holds VAPP and hints when the speed is off", () => {
+  const g = new RunwayGame(4, { stage: "landing" });
+  g.start();
+  g.ac.v = (VAPP - 15) * KT;
+  g.update(1 / 60);
+  assert.equal(g.assistInfo.thr, 1, "too slow: more thrust");
+  const t0 = g.throttle;
+  run(g, 2);
+  assert.ok(g.throttle > t0);
+  g.ac.v = (VAPP + 15) * KT;
+  g.update(1 / 60);
+  assert.equal(g.assistInfo.thr, -1, "too fast: less thrust");
+  // the pilot's own throttle input wins
+  const slow = new RunwayGame(4, { stage: "landing" });
+  slow.start();
+  const s0 = slow.throttle;
+  slow.setInput(0, 0, -1);
+  run(slow, 1);
+  assert.ok(slow.throttle < s0 - 0.3);
+});
+
+test("assist: after liftoff the nose eases toward the 15° climb attitude", () => {
+  const g = new RunwayGame(6);
+  g.start();
+  g.setThrottle(1);
+  step(g, (x) => x.setInput(x.ac.ground && x.ias >= V_SPEEDS.vr ? 1 : 0, 0, 0));
+  assert.equal(g.phase, "clear");
+  assert.ok(Math.abs(g.takeoff.climbPitch - 15) < 3, `climb ${g.takeoff.climbPitch}`);
+});
+
 test("the two stages combine into one result and pause freezes the flight", () => {
   const g = takeoff(new RunwayGame(5));
   assert.ok(g.nextStage());
@@ -172,7 +291,7 @@ test("the two stages combine into one result and pause freezes the flight", () =
   g.start();
   g.pause();
   const x = g.ac.x;
-  g.update(1);
+  run(g, 1);
   assert.equal(g.ac.x, x);
   g.resume();
   land(g);

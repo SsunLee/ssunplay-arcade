@@ -1,22 +1,24 @@
-import { RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, GRADES, FAILURES, formatWind, clamp } from "./runway-engine.js";
+import { RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, GRADES, FAILURES, formatWind, clamp } from "./runway-engine.js";
 import { RunwayView } from "./runway-view.js";
 
 const shareIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg>';
 const HINT = {
   throttle: "추력을 끝까지 올리세요 (Shift · THR +)",
   wait: "속도가 붙고 있어요… VR까지 기다리세요",
-  rotate: "로테이트! 기수를 드세요 (S · ↓ · 아래로 드래그)",
+  rotate: "로테이트! 기수를 드세요 (S · ↓ · 핸들을 아래로)",
   climb: "기수 15° 유지, 300피트까지 상승",
   tail: "기수를 너무 들면 꼬리가 닿아요!",
   path: "PAPI 흰색 2개 · 빨간색 2개를 유지하세요",
   line: "기울여서 중심선에 맞추세요",
+  slow: "속도가 느려요 · 추력을 올리세요 (Shift · THR +)",
+  fast: "속도가 빨라요 · 추력을 줄이세요 (Ctrl · THR −)",
   flare: "추력을 줄이고 살짝 기수를 드세요 · 플레어!",
   roll: "착륙! 감속 중…",
   paused: "일시 정지",
 };
 const TIPS = {
-  tailstrike: "VR에서 천천히 들어 올리고, 바퀴가 뜰 때까지 11°를 넘기지 마세요.",
-  early: "VR(145kt)이 될 때까지 기다렸다가 기수를 드세요.",
+  tailstrike: "VR에서 천천히 들어 올리고, 바퀴가 뜰 때까지 13°를 넘기지 마세요.",
+  early: "135kt(VR−10)가 넘으면 기수를 드세요. VR(145kt)이 가장 좋아요.",
   overrun: "VR에서 바로 기수를 들어야 활주로 끝 전에 떠요.",
   stall: "기수를 너무 높이 들면 속도가 떨어져 실속해요.",
   sink: "이륙 직후에는 기수를 유지하고 상승하세요.",
@@ -27,6 +29,16 @@ const TIPS = {
   hard: "50피트 아래에서 추력을 줄이고 기수를 살짝 들어 강하율을 줄이세요.",
   goaround: "400피트 아래에서는 안정된 접근이 필요해요. 활공각과 속도를 지키세요.",
 };
+// Control yoke drawn in code: the wheel turns with roll, slides with pitch; the dot plots both.
+const YOKE_SVG = `<svg viewBox="-60 -48 120 96" aria-hidden="true">
+<path class="rw-yk-grid" d="M-52 0H52M0-40V40"/>
+<rect class="rw-yk-col" x="-7" y="30" width="14" height="20" rx="3"/>
+<g id="rw-yk-move"><rect class="rw-yk-shaft" x="-4" y="4" width="8" height="44" rx="2"/>
+<g id="rw-yk-wheel"><path class="rw-yk-horn" d="M-31-22-32-6Q-32 8-18 8H18Q32 8 32-6L31-22"/>
+<rect class="rw-yk-grip" x="-37" y="-30" width="11" height="22" rx="5"/><rect class="rw-yk-grip" x="26" y="-30" width="11" height="22" rx="5"/>
+<circle class="rw-yk-hub" cy="8" r="10"/><path class="rw-yk-mark" d="M0-1V-12"/></g></g>
+<g transform="translate(44 30)"><rect class="rw-yk-box" x="-12" y="-12" width="24" height="24" rx="4"/><path class="rw-yk-grid" d="M-12 0H12M0-12V12"/><circle id="rw-yk-dot" class="rw-yk-dot" r="3.4"/></g>
+</svg>`;
 const pad = (n, w = 3) => String(Math.round(Math.abs(n))).padStart(w, "0");
 const signed = (n, digits = 0) => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(n).toFixed(digits);
 
@@ -91,6 +103,8 @@ export class RunwayController {
     this.keys = new Set();
     this.hold = { pitch: 0, roll: 0, throttle: 0 };
     this.drag = null;
+    this.yoke = null; // the on-screen yoke being dragged
+    this.yokeShown = { pitch: 0, roll: 0 };
     this.tilt = null;
     this.sound = new Sound(sound);
     app.innerHTML = header + `<main id="main" class="game-shell runway" data-stage="takeoff" data-phase="ready">
@@ -98,7 +112,7 @@ export class RunwayController {
 <div class="rw-top"><div class="rw-stage"><span id="rw-stage-label"></span><b id="rw-wind" translate="no"></b></div>
 <div class="controls"><button data-action="retry" aria-label="다시 시작">↻</button><button data-action="pause" aria-label="일시 정지">Ⅱ</button><button data-rw="tilt" class="rw-tilt" aria-pressed="false" aria-label="기울기 조종">📱</button><button data-action="share" class="game-share" aria-label="게임 공유" aria-haspopup="dialog">${shareIcon}</button></div></div>
 <div class="rw-pfd" translate="no"><div><small>IAS</small><b id="rw-ias"></b><i>KT</i></div><div><small>ALT</small><b id="rw-alt"></b><i>FT</i></div><div><small>V/S</small><b id="rw-vs"></b><i>FPM</i></div><div><small>PITCH</small><b id="rw-pitch"></b><i>DEG</i></div><div><small>THR</small><b id="rw-thr"></b><i>%</i></div><div class="rw-crab"><small>CRAB</small><b id="rw-crab"></b><i>DEG</i></div></div>
-<div id="rw-speedbar" class="rw-speedbar" translate="no"><span id="rw-speedfill"></span><i style="left:${(V_SPEEDS.v1 / 180) * 100}%">V1</i><i style="left:${(V_SPEEDS.vr / 180) * 100}%">VR</i></div>
+<div id="rw-speedbar" class="rw-speedbar" translate="no"><span id="rw-speedfill"></span><b class="rw-vrwin" style="left:${((V_SPEEDS.vr - ROTATE_EARLY) / 180) * 100}%;width:${(ROTATE_EARLY / 180) * 100}%"></b><i style="left:${(V_SPEEDS.v1 / 180) * 100}%">V1</i><i style="left:${(V_SPEEDS.vr / 180) * 100}%">VR</i></div>
 <p id="rw-hint" class="rw-hint" role="status" aria-live="polite"></p>
 <div id="rw-atc" class="rw-atc" hidden><span class="rw-atc-from" translate="no">TWR</span><p id="rw-atc-en" class="rw-atc-en" translate="no"></p><p id="rw-atc-ko" class="rw-atc-ko"></p></div>
 <div id="rw-callout" class="rw-callout" translate="no" aria-hidden="true"></div>
@@ -108,7 +122,7 @@ export class RunwayController {
 <div id="rw-stick" class="rw-stick" hidden aria-hidden="true"><i></i></div>
 <div id="rw-intro" class="rw-intro"></div>
 <div class="rw-pad" aria-label="조종 버튼"><div class="rw-thr"><button data-hold="throttle:1" aria-label="추력 올리기">THR +</button><button data-hold="throttle:-1" aria-label="추력 줄이기">THR −</button></div>
-<div class="rw-yoke"><button data-hold="pitch:-1" class="up" aria-label="기수 내리기">▲</button><button data-hold="roll:-1" class="left" aria-label="왼쪽으로 기울이기">◀</button><button data-hold="roll:1" class="right" aria-label="오른쪽으로 기울이기">▶</button><button data-hold="pitch:1" class="down" aria-label="기수 들기">▼</button></div></div>
+<div class="rw-yoke"><button data-hold="pitch:-1" class="up" aria-label="기수 내리기">▲</button><button data-hold="roll:-1" class="left" aria-label="왼쪽으로 기울이기">◀</button><div id="rw-wheel" class="rw-wheel" role="img" aria-label="조종 핸들: 위아래로 끌면 기수, 좌우로 끌면 기울기">${YOKE_SVG}</div><button data-hold="roll:1" class="right" aria-label="오른쪽으로 기울이기">▶</button><button data-hold="pitch:1" class="down" aria-label="기수 들기">▼</button></div></div>
 <div id="result" class="result-overlay" hidden></div>
 </main>`;
     this.shell = app.querySelector(".runway");
@@ -127,6 +141,7 @@ export class RunwayController {
         for (const e of this.g.events.splice(0)) { this.view.handle(e); this.onEvent(e); }
         this.view.render(this.g.phase === "paused" ? 0 : dt);
         this.updateHUD();
+        this.drawYoke(dt);
       }
       this.sound.engine(this.g.throttle, !modal.open && !["paused", "result"].includes(this.g.phase));
       this.raf = requestAnimationFrame(frame);
@@ -209,6 +224,31 @@ export class RunwayController {
       stick.hidden = true;
     };
     for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) c.addEventListener(t, end, opt);
+    // the on-screen yoke: drag down = pull back (nose up), sideways = roll; it springs back to centre on release
+    const wheel = this.$("rw-wheel");
+    wheel.addEventListener("pointerdown", (e) => {
+      if (this.yoke || (e.pointerType === "mouse" && e.button !== 0)) return;
+      e.preventDefault();
+      this.sound.ensure();
+      wheel.setPointerCapture(e.pointerId);
+      this.yoke = { id: e.pointerId, x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
+      wheel.classList.add("on");
+      if (g.phase === "ready") this.start();
+    }, opt);
+    wheel.addEventListener("pointermove", (e) => {
+      if (this.yoke?.id !== e.pointerId) return;
+      const range = Math.max(40, wheel.clientWidth * 0.42);
+      this.yoke.dx = clamp((e.clientX - this.yoke.x) / range, -1, 1);
+      this.yoke.dy = clamp((e.clientY - this.yoke.y) / range, -1, 1);
+      e.preventDefault();
+    }, opt);
+    const yokeEnd = (e) => {
+      if (this.yoke?.id !== e.pointerId) return;
+      this.yoke = null;
+      wheel.classList.remove("on");
+    };
+    for (const t of ["pointerup", "pointercancel", "lostpointercapture"]) wheel.addEventListener(t, yokeEnd, opt);
+    wheel.addEventListener("contextmenu", (e) => e.preventDefault(), opt);
     const KEYS = {
       KeyW: "pd", ArrowUp: "pd", KeyS: "pu", ArrowDown: "pu", KeyA: "rl", ArrowLeft: "rl", KeyD: "rr", ArrowRight: "rr",
       ShiftLeft: "tu", ShiftRight: "tu", Equal: "tu", NumpadAdd: "tu", PageUp: "tu", ControlLeft: "td", ControlRight: "td", Minus: "td", NumpadSubtract: "td", PageDown: "td",
@@ -247,15 +287,32 @@ export class RunwayController {
     window.addEventListener("blur", () => {
       this.keys.clear();
       this.drag = null;
+      this.yoke = null;
+      wheel.classList.remove("on");
       stick.hidden = true;
     }, opt);
   }
   applyInput() {
-    const k = this.keys, h = this.hold, d = this.drag, t = this.tilt?.on ? this.tilt : null;
-    const pitch = (k.has("pu") ? 1 : 0) - (k.has("pd") ? 1 : 0) + h.pitch + (d ? d.dy : 0) + (t ? t.pitch : 0),
-      roll = (k.has("rr") ? 1 : 0) - (k.has("rl") ? 1 : 0) + h.roll + (d ? d.dx : 0) + (t ? t.roll : 0),
+    const k = this.keys, h = this.hold, d = this.drag, y = this.yoke, t = this.tilt?.on ? this.tilt : null;
+    const pitch = (k.has("pu") ? 1 : 0) - (k.has("pd") ? 1 : 0) + h.pitch + (d ? d.dy : 0) + (y ? y.dy : 0) + (t ? t.pitch : 0),
+      roll = (k.has("rr") ? 1 : 0) - (k.has("rl") ? 1 : 0) + h.roll + (d ? d.dx : 0) + (y ? y.dx : 0) + (t ? t.roll : 0),
       thr = (k.has("tu") ? 1 : 0) - (k.has("td") ? 1 : 0) + h.throttle;
     this.g.setInput(pitch, roll, thr);
+  }
+  /** The yoke mirrors every input source (keys, buttons, drag, tilt) and eases back to centre. */
+  drawYoke(dt) {
+    const inp = this.g.input, s = this.yokeShown, k = 1 - Math.exp(-dt * 16);
+    s.pitch += (inp.pitch - s.pitch) * k;
+    s.roll += (inp.roll - s.roll) * k;
+    const p = s.pitch.toFixed(3), r = s.roll.toFixed(3);
+    if (this.cache.yoke === p + r) return;
+    this.cache.yoke = p + r;
+    this.$("rw-yk-move").setAttribute("transform", `translate(0 ${(s.pitch * 11).toFixed(2)}) scale(${(1 + s.pitch * 0.07).toFixed(3)})`);
+    this.$("rw-yk-wheel").setAttribute("transform", `rotate(${(s.roll * 42).toFixed(2)} 0 8)`);
+    this.$("rw-yk-dot").setAttribute("transform", `translate(${(s.roll * 9).toFixed(2)} ${(s.pitch * 9).toFixed(2)})`);
+    const w = this.$("rw-wheel").classList;
+    w.toggle("pitching", Math.abs(inp.pitch) > 0.05);
+    w.toggle("rolling", Math.abs(inp.roll) > 0.05);
   }
   async toggleTilt() {
     const btn = this.shell.querySelector('[data-rw="tilt"]');
@@ -363,7 +420,7 @@ export class RunwayController {
     if (g.stage === "takeoff") {
       if (a.ground) {
         if (a.pitch > TAIL_LIMIT - 2.5) return HINT.tail;
-        if (g.ias >= V_SPEEDS.vr) return HINT.rotate;
+        if (g.ias >= V_SPEEDS.vr - ROTATE_EARLY / 2) return HINT.rotate;
         return g.throttle < 0.9 ? HINT.throttle : HINT.wait;
       }
       return HINT.climb;
@@ -371,6 +428,7 @@ export class RunwayController {
     if (g.phase === "roll") return HINT.roll;
     if (g.altFt < 60) return HINT.flare;
     if (Math.abs(g.locDots) > 0.6) return HINT.line;
+    if (g.assistInfo.thr) return g.assistInfo.thr > 0 ? HINT.slow : HINT.fast;
     return HINT.path;
   }
   updateHUD(force = false) {
