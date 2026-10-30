@@ -211,10 +211,11 @@ export class SubwayView {
       x.fillStyle = '#fff'; x.beginPath(); x.moveTo(w - 140, h / 2 - 30); x.lineTo(w - 60, h / 2); x.lineTo(w - 140, h / 2 + 30); x.fill(); x.fillRect(w - 260, h / 2 - 11, 130, 22);
       x.fillStyle = '#c9d3dc'; for (let i = 0; i < 3; i++) x.fillRect(120, 30 + i * 22, 180 - i * 40, 10);
     }));
+    this.signs = [];
     for (let z = 22; z < LENGTH; z += 32) {
-      const m = new T.Mesh(this.track(new T.PlaneGeometry(2.3, .5)), this.basic(0xffffff, { map:sign })); m.position.copy(W(-.2, 2.9, z)); m.rotation.y = 0; s.add(m);
-      const back = this.box([2.34, .54, .04], [-.2, 2.9, z + .03], this.std(0x161d24, .6)); back.renderOrder = -1;
-      for (const x of [-1, .6]) this.box([.02, .22, .02], [x, 3.27, z], this.std(0x6d747b, .4, .6));
+      const m = new T.Mesh(this.track(new T.PlaneGeometry(2.3, .5)), this.basic(0xffffff, { map:sign })); m.position.copy(W(-.2, 3.2, z)); m.rotation.y = 0; s.add(m);
+      const back = this.box([2.34, .54, .04], [-.2, 3.2, z + .03], this.std(0x161d24, .6)); back.renderOrder = -1; this.signs.push(m, back);
+      for (const x of [-1, .6]) this.box([.02, .06, .02], [x, 3.47, z], this.std(0x6d747b, .4, .6));
     }
     // stairs up behind the start, where 부장님 came down
     for (let i = 0; i < 12; i++) this.box([2.8, .18, .32], [0, .09 + i * .18, -1.5 - i * .32], this.std(i % 2 ? 0xb9b5ab : 0xc6c2b8, .7));
@@ -565,6 +566,8 @@ export class SubwayView {
     else { W(-.9, 1.85, LENGTH - (tall ? 5.6 : 4.2), pos); W(PSD_X - .2, 1.05, LENGTH + .2, look); }
     this.camPos.lerp(pos, k); this.camLook.lerp(look, k);
     cam.position.copy(this.camPos); cam.lookAt(this.camLook);
+    // hide hanging signs the camera is about to pass through
+    for (const m of this.signs || []) m.visible = !(cam.position.y > 2.5 && Math.abs(m.position.z - cam.position.z) < 1.6);
     if (this.shake > 0 && !this.reduced) { cam.position.x += (Math.random() - .5) * this.shake * .25; cam.position.y += (Math.random() - .5) * this.shake * .2; this.shake = Math.max(0, this.shake - dt * 1.6); }
     if (Math.abs(cam.fov - fov) > .05) { cam.fov = lerp(cam.fov, fov, k); cam.updateProjectionMatrix(); }
   }
