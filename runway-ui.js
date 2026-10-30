@@ -1,5 +1,5 @@
 import { RunwayGame, RWY, V_SPEEDS, VAPP, TAIL_LIMIT, ROTATE_EARLY, GRADES, FAILURES, HOLD, formatWind, clamp, holdStick, holdLabel, LIVERIES, LIVERY_KEY, getLivery } from "./runway-engine.js";
-import { RunwayView } from "./runway-view.js";
+import { RunwayView, renderLiveryShots } from "./runway-view.js";
 
 const shareIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m-4 4 4-4 4 4M6 11H4v10h16V11h-2"/></svg>';
 const HINT = {
@@ -40,29 +40,14 @@ const YOKE_SVG = `<svg viewBox="-60 -48 120 96" aria-hidden="true">
 <g transform="translate(44 30)"><rect class="rw-yk-box" x="-12" y="-12" width="24" height="24" rx="4"/><path class="rw-yk-grid" d="M-12 0H12M0-12V12"/><circle id="rw-yk-dot" class="rw-yk-dot" r="3.4"/></g>
 </svg>`;
 const storedLivery = () => { try { return localStorage.getItem(LIVERY_KEY); } catch { return null; } };
-/** A side-view mini plane in the livery's colours for the select cards. */
+// Livery thumbnails are rendered once from the 3D airliner itself, so the cards match the aircraft you fly.
+let shots = null;
 function liveryPreview(lv) {
-  const k = lv.colors, id = "rwl-" + lv.id, fin = "M17 32 4 6h7l20 26Z", body = "M9 26h91q16 0 17 7-1 7-17 7H15Q6 40 3 30Z";
-  const spiral = Array.from({ length: 33 }, (_, i) => { const t = i / 32, a = t * Math.PI * 3.4, r = 0.4 + t * 3; return `${(14 + Math.cos(a) * r).toFixed(2)} ${(19 - Math.sin(a) * r).toFixed(2)}`; }).join(" ");
-  const waves = (y) => `M0 ${y}q4-2 8 0t8 0 8 0 8 0`;
-  const tail = {
-    swirl: `<circle cx="14" cy="19" r="4.6" fill="none" stroke="${k.accent2}" stroke-width="1.2"/><path d="M${spiral}" fill="none" stroke="${k.accent}" stroke-width="1.3" stroke-linecap="round"/>`,
-    stripes: [k.accent, k.accent2, k.accent3, k.accent4, k.accent5].map((c, i) => `<rect x="0" y="${5 + i * 3.4}" width="32" height="2.5" fill="${c}"/>`).join(""),
-    sweep: `<rect width="32" height="34" fill="url(#${id}-g)"/><path d="M27 32Q19 21 9 6" fill="none" stroke="${k.accent2}" stroke-width=".9"/>`,
-    slant: `<path d="M0 32h32L0 21Z" fill="${k.accent}"/><circle cx="15" cy="16" r="1.8" fill="${k.accent2}"/>`,
-    wing: `<path d="M24 30C20 23 12 14 6 7c6 3 16 12 18 23Z" fill="${k.accent}"/><path d="M24 30C22 23 17 14 13 6c4 4 11 14 11 24Z" fill="${k.accent2}"/>`,
-    band: `<path d="M26 33h-3L4 5h3Z" fill="${k.accent}"/>`,
-    waves: `<path d="${waves(26)}V33H0Z" fill="${k.accent}"/><path d="${waves(29)}V33H0Z" fill="${k.accent2}"/><path d="${waves(21)}" fill="none" stroke="#fff" stroke-width=".8"/>`,
-    sun: `<circle cx="14" cy="17" r="4.6" fill="${k.accent}"/><text x="14" y="19.6" font-size="7.5" font-weight="900" text-anchor="middle" fill="${k.tail}">S</text>`,
-  }[lv.tail] ?? "";
-  const windows = Array.from({ length: 15 }, (_, i) => `<circle cx="${26 + i * 4.6}" cy="30" r=".85"/>`).join("");
-  return `<svg viewBox="0 0 120 48" aria-hidden="true"><defs><clipPath id="${id}-f"><path d="${fin}"/></clipPath><clipPath id="${id}-b"><path d="${body}"/></clipPath><linearGradient id="${id}-g" x1="0" y1="1" x2=".6" y2="0"><stop offset="0" stop-color="${k.tail}"/><stop offset=".55" stop-color="${k.accent}"/><stop offset="1" stop-color="${k.tail}"/></linearGradient></defs>
-<g clip-path="url(#${id}-f)"><rect width="32" height="34" fill="${k.tail}"/>${tail}</g><path d="${fin}" fill="none" stroke="#0b162030" stroke-width=".5"/>
-<path d="M1 28 14 29v2H1Z" fill="#b9c3c9"/>
-<g clip-path="url(#${id}-b)"><rect width="120" height="48" fill="${k.body}"/><rect y="34.6" width="120" height="8" fill="${k.belly}"/>${k.cheat ? `<rect x="4" y="32.6" width="112" height="1.8" fill="${k.cheat}"/>` : ""}${k.stripe ? `<rect x="4" y="34.6" width="108" height=".7" fill="${k.stripe}"/>` : ""}</g>
-<path d="${body}" fill="none" stroke="#0b162040" stroke-width=".6"/><g fill="#263540">${windows}</g><path d="M106 28.4h5.4l2.6 2.8h-8Z" fill="#263540"/>
-<path d="M44 36.5h26l-8 2Z" fill="#9aa6ad"/><rect x="50" y="38.5" width="17" height="6.4" rx="3.2" fill="${k.engine}" stroke="#0b162040" stroke-width=".5"/><rect x="59" y="38.5" width="3" height="6.4" fill="${k.band}"/>
-</svg>`;
+  if (!shots) {
+    try { shots = renderLiveryShots(LIVERIES.map((l) => l.id)); } catch { shots = {}; }
+  }
+  const src = shots[lv.id];
+  return src ? `<img class="rw-lv-shot" src="${src}" alt="" width="480" height="200" draggable="false">` : `<span class="rw-lv-shot" style="--a:${lv.colors.tail};--b:${lv.colors.body}" aria-hidden="true"></span>`;
 }
 const pad = (n, w = 3) => String(Math.round(Math.abs(n))).padStart(w, "0");
 const signed = (n, digits = 0) => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(n).toFixed(digits);

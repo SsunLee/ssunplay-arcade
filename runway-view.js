@@ -17,67 +17,230 @@ function canvasTexture(w, h, draw) {
   t.anisotropy = 8;
   return t;
 }
-/** A slab whose root and tip chords are given (x leading/trailing), spanning z. */
-function wingGeometry({ rootLE, rootTE, tipLE, tipTE, span, thick = 0.35, tipThick = 0.12, dihedral = 0, side = 1 }) {
-  const g = new T.BoxGeometry(1, 1, 1), p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const tip = p.getZ(i) + 0.5, lead = p.getX(i) + 0.5, up = p.getY(i);
-    const x = lerp(lerp(rootTE, rootLE, lead), lerp(tipTE, tipLE, lead), tip),
-      z = tip * span * side,
-      y = up * lerp(thick, tipThick, tip) + tip * span * Math.tan(dihedral * DEG);
-    p.setXYZ(i, x, y, z);
+// ---- Airliner geometry -------------------------------------------------------------------
+// Body frame: origin on the fuselage centreline above the main wheels, x to the nose, y up, z to the right.
+// Proportions follow a 37.6 m single-aisle twin jet: 4 m fuselage, 34 m span plus sharklets.
+const CY = 4, R = 2, NOSE = 17.4, NOSE_LEN = 6.4, CONE = -8.6, TAIL = -20;
+const pw = (v, p) => Math.pow(Math.max(0, v), p);
+/** The fuselage cross-section at x: an ellipse centred at yc with half-width a and half-height b. */
+function fuselageSection(x) {
+  let top = CY + R, bot = CY - R, a = R;
+  if (x > NOSE - NOSE_LEN) {
+    // a blunt radome that rises into the cockpit roof; the chin stays low and full
+    const t = clamp((NOSE - x) / NOSE_LEN, 0, 1), y0 = CY - 0.62;
+    top = y0 + (CY + R - y0) * pw(1 - pw(1 - t, 1.9), 0.62);
+    bot = y0 - (y0 - (CY - R)) * pw(1 - pw(1 - t, 2.8), 0.5);
+    a = R * pw(1 - pw(1 - t, 2.4), 0.52);
+  } else if (x < CONE) {
+    // the tail cone sweeps its belly upward (tailstrike clearance) and narrows to the APU exhaust
+    const s = clamp((CONE - x) / (CONE - TAIL), 0, 1);
+    top = CY + R - 0.85 * pw(s, 2.2);
+    bot = CY - R + 2.3 * s * s;
+    a = lerp(R, 0.32, pw(s, 1.15));
   }
+  return { yc: (top + bot) / 2, a, b: (top - bot) / 2 };
+}
+/** A point on (or `off` metres outside) the fuselage skin; θ = 0 on top, π/2 on the right side, π underneath. */
+const skinPoint = (x, th, off = 0) => {
+  const s = fuselageSection(x);
+  return [x, s.yc + (s.b + off) * Math.cos(th), (s.a + off) * Math.sin(th)];
+};
+/** Builds an indexed grid geometry from a (cols+1)×(rows+1) point/uv generator, wound outward. */
+function gridGeometry(cols, rows, at, flip = false, out = { pos: [], uv: [], idx: [] }) {
+  const base = out.pos.length / 3;
+  for (let i = 0; i <= cols; i++)
+    for (let j = 0; j <= rows; j++) {
+      const { p, uv = [0, 0] } = at(i, j);
+      out.pos.push(...p);
+      out.uv.push(...uv);
+    }
+  const id = (i, j) => base + i * (rows + 1) + j;
+  for (let i = 0; i < cols; i++)
+    for (let j = 0; j < rows; j++) {
+      const a = id(i, j), b = id(i, j + 1), c = id(i + 1, j), d = id(i + 1, j + 1);
+      out.idx.push(...(flip ? [a, c, b, b, c, d] : [a, b, c, b, d, c]));
+    }
+  return out;
+}
+function toGeometry({ pos, uv, idx }) {
+  const g = new T.BufferGeometry();
+  g.setAttribute("position", new T.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new T.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
   g.computeVertexNormals();
   return g;
 }
-const finGeometry = () => {
-  const s = new T.Shape();
-  s.moveTo(-12.6, 0);
-  s.lineTo(-19.4, 0);
-  s.lineTo(-21.6, 6.6);
-  s.lineTo(-19.6, 6.6);
-  s.closePath();
-  const g = new T.ExtrudeGeometry(s, { depth: 0.36, bevelEnabled: false });
-  g.translate(0, 0, -0.18);
-  return g;
+/** A strip of fuselage skin between stations `xs` (ascending) and angles th0..th1. */
+const skinGeometry = (xs, th0, th1, rows, off = 0) =>
+  toGeometry(gridGeometry(xs.length - 1, rows, (i, j) => ({ p: skinPoint(xs[i], lerp(th0, th1, j / rows), off), uv: [i / (xs.length - 1), j / rows] })));
+/**
+ * Decals laid on the skin: each part is a quad in (x, θ) with corners [aft-top, fwd-top, aft-bottom, fwd-bottom]
+ * as seen from its own side, so the texture reads upright and nose-right on the right side, nose-left on the left.
+ */
+function decalGeometry(parts, off) {
+  const out = { pos: [], uv: [], idx: [] };
+  for (const { c, nx = 1, nt = 1 } of parts) {
+    const side = Math.sign(c[0][1] + c[3][1]) || 1;
+    gridGeometry(nx, nt, (i, j) => {
+      const u = i / nx, v = j / nt, x = lerp(lerp(c[0][0], c[1][0], u), lerp(c[2][0], c[3][0], u), v),
+        th = lerp(lerp(c[0][1], c[1][1], u), lerp(c[2][1], c[3][1], u), v);
+      return { p: skinPoint(x, th, off), uv: [side > 0 ? u : 1 - u, 1 - v] };
+    }, side < 0, out);
+  }
+  return toGeometry(out);
+}
+/** A rectangle on the skin from x0 to x1 (x0 < x1) and angle t0 (upper) to t1 (lower), on the right side; side −1 mirrors it. */
+const rect = (x0, x1, t0, t1, side = 1, nx = 1, nt = 1) => {
+  return { c: [[x0, side * t0], [x1, side * t0], [x0, side * t1], [x1, side * t1]], nx, nt };
 };
 
+// Symmetric airfoil (NACA 00xx), half-thickness per unit of maximum thickness at chord fraction s.
+const airfoil = (s) => 5 * (0.2969 * Math.sqrt(s) - 0.126 * s - 0.3516 * s * s + 0.2843 * s ** 3 - 0.1036 * s ** 4);
+const CHORD = Array.from({ length: 15 }, (_, k) => (1 - Math.cos((Math.PI * k) / 14)) / 2);
 /**
- * A hinged control surface. The hinge runs from `a` to `b` (body frame, a→b along +z or +y);
- * the panel trails aft of the hinge by `chord`. Returns the pivot: rotation.z (or .y for a
- * vertical hinge) deflects it, positive = trailing edge down (or to the right).
+ * Lofts an airfoil through `sections`: { le: [x,y,z], c: chord (aft along −x), t: max thickness,
+ * n: thickness axis, cut: x where the trailing edge is cut away for a hinged surface, wall: starts a new strip }.
+ * `side` −1 mirrors in z. `uvAt` maps body positions to texture coordinates.
  */
-function controlSurface(F, parent, a, b, chord, thick, mat, vertical = false) {
-  const A = new T.Vector3(...a), B = new T.Vector3(...b), mount = new T.Group(), pivot = new T.Group();
+function loftGeometry(sections, { side = 1, cap = true, uvAt = null } = {}) {
+  const out = { pos: [], uv: [], idx: [] }, M = CHORD.length * 2 - 1;
+  const ring = (S) => {
+    const n = S.n ?? [0, 1, 0], end = S.cut == null ? 1 : clamp((S.le[0] - S.cut) / S.c, 0, 1), pts = [];
+    for (let k = 0; k < M; k++) {
+      const upper = k < CHORD.length, s = Math.min(upper ? CHORD[CHORD.length - 1 - k] : CHORD[k - CHORD.length + 1], end),
+        h = (upper ? 1 : -1) * S.t * airfoil(s);
+      pts.push([S.le[0] - s * S.c + n[0] * h, S.le[1] + n[1] * h, (S.le[2] + n[2] * h) * side]);
+    }
+    return pts;
+  };
+  // wind so the +n face points along n: flip when chord (+x) × span disagrees with n, and again when mirrored
+  const s0 = sections[0], s1 = sections[1], n0 = s0.n ?? [0, 1, 0],
+    flip = (-(s1.le[2] - s0.le[2]) * n0[1] + (s1.le[1] - s0.le[1]) * n0[2] < 0) !== (side < 0);
+  const strip = (list) => {
+    const rings = list.map(ring);
+    gridGeometry(rings.length - 1, M, (i, j) => {
+      const p = rings[i][j % M];
+      return { p, uv: uvAt ? uvAt(p) : [0, 0] };
+    }, flip, out);
+  };
+  let run = [sections[0]];
+  for (let i = 1; i < sections.length; i++) {
+    if (sections[i].wall) {
+      if (run.length > 1) strip(run);
+      strip([sections[i - 1], sections[i]]);
+      run = [sections[i]];
+    } else run.push(sections[i]);
+  }
+  if (run.length > 1) strip(run);
+  if (cap) {
+    const last = ring(sections.at(-1)), mid = last.reduce((m, p) => m.map((v, i) => v + p[i] / M), [0, 0, 0]),
+      base = out.pos.length / 3;
+    out.pos.push(...mid, ...last.flat());
+    for (let k = 0; k <= M; k++) out.uv.push(...(uvAt ? uvAt(k ? last[k - 1] : mid) : [0, 0]));
+    // the cap faces outward along the last span segment
+    const prev = sections.at(-2).le, tipDir = new T.Vector3(...sections.at(-1).le).sub(new T.Vector3(...prev)), A = new T.Vector3(...mid);
+    tipDir.z *= side;
+    const nCap = new T.Vector3(...last[0]).sub(A).cross(new T.Vector3(...last[1]).sub(A)), out_ = nCap.dot(tipDir) >= 0;
+    for (let k = 0; k < M; k++) {
+      const a = base + 1 + k, b = base + 1 + ((k + 1) % M);
+      out.idx.push(...(out_ ? [base, a, b] : [base, b, a]));
+    }
+  }
+  return toGeometry(out);
+}
+const halfAt = (S, x) => S.t * airfoil(clamp((S.le[0] - x) / S.c, 0, 1));
+/**
+ * A hinged control surface filling the cut-out between two lofted sections SA and SB (body frame, hinge A→B
+ * along +z, or +y when `vertical`). Returns the pivot: rotation.z (or .y) deflects it, positive = trailing edge
+ * down (or to the right).
+ */
+function controlSurface(F, parent, SA, SB, mat, { vertical = false, side = 1, uvAt = null, top = false, chord = 0 } = {}) {
+  // spoilers (`top`) are thin plates on the upper skin from the hinge `chord` metres aft
+  const ends = [SA, SB].map((S) => {
+    const n = S.n ?? [0, 1, 0], hx = S.cut, h = top ? halfAt(S, hx) + 0.02 : halfAt(S, hx), tx = top ? hx - chord : S.le[0] - S.c;
+    const lift = top ? h - 0.03 : 0, tl = top ? halfAt(S, tx) - 0.01 : 0;
+    const P = (x, off, dh) => [x + n[0] * (off + dh), S.le[1] + n[1] * (off + dh), (S.le[2] + n[2] * (off + dh)) * side];
+    return { hinge: P(hx, lift, 0), hu: P(hx, lift, top ? 0.035 : h), hl: P(hx, lift, top ? -0.035 : -h), tu: P(tx, tl, top ? 0.025 : 0.012), tl: P(tx, tl, top ? -0.025 : -0.012) };
+  });
+  // hinges always run toward +z (or up) so a positive deflection means the same on both sides
+  if (side < 0 && !vertical) ends.reverse();
+  const A = new T.Vector3(...ends[0].hinge), B = new T.Vector3(...ends[1].hinge), mount = new T.Group(), pivot = new T.Group();
   mount.position.copy(A).add(B).multiplyScalar(0.5);
   mount.quaternion.copy(Q.setFromUnitVectors(vertical ? new T.Vector3(0, 1, 0) : new T.Vector3(0, 0, 1), B.clone().sub(A).normalize()));
   parent.add(mount);
   mount.add(pivot);
-  const len = A.distanceTo(B);
-  F.mesh(new T.BoxGeometry(chord, vertical ? len : thick, vertical ? thick : len), mat, pivot, [-chord / 2, 0, 0]);
+  const inv = mount.quaternion.clone().invert(), local = (p) => new T.Vector3(...p).sub(mount.position).applyQuaternion(inv).toArray();
+  // eight corners: hinge upper/lower and trailing upper/lower at each end
+  const [a, b] = ends, faces = [[a.hu, b.hu, a.tu, b.tu], [b.hl, a.hl, b.tl, a.tl], [a.hl, b.hl, a.hu, b.hu], [a.tu, b.tu, a.tl, b.tl], [a.hu, a.tu, a.hl, a.tl], [b.tu, b.hu, b.tl, b.hl]];
+  const out = { pos: [], uv: [], idx: [] }, mid = new T.Vector3(...local(a.hinge)).lerp(new T.Vector3(...local(b.tu)), 0.5);
+  for (const f of faces) {
+    const base = out.pos.length / 3, [p0, p1, p2, p3] = f.map((p) => new T.Vector3(...local(p)));
+    // wind each face so its normal points away from the middle of the panel
+    const n = p2.clone().sub(p0).cross(p1.clone().sub(p0)), c = p0.clone().add(p1).add(p2).add(p3).multiplyScalar(0.25).sub(mid);
+    for (const p of f) {
+      out.pos.push(...local(p));
+      out.uv.push(...(uvAt ? uvAt(p) : [0, 0]));
+    }
+    out.idx.push(...(n.dot(c) >= 0 ? [base, base + 2, base + 1, base + 1, base + 2, base + 3] : [base, base + 1, base + 2, base + 1, base + 3, base + 2]));
+  }
+  F.mesh(toGeometry(out), mat, pivot);
   // a dark hinge line so the panel reads as a separate, moving part
-  F.mesh(new T.BoxGeometry(0.1, vertical ? len : thick + 0.04, vertical ? thick + 0.04 : len), mat.userData.edge, pivot, [-0.02, 0, 0]).castShadow = false;
+  const len = A.distanceTo(B), th = top ? 0.08 : new T.Vector3(...a.hu).distanceTo(new T.Vector3(...a.hl)) + 0.02;
+  F.cube(pivot, vertical ? [0.07, len, th] : [0.07, th, len], [-0.03, 0, 0], mat.userData.edge).castShadow = false;
   return pivot;
 }
 
-// The fin texture is drawn in fin metres: x from -21.6 (trailing tip) to -12.6 (leading root), y from 0 to 6.6 up.
-const FIN = { x0: -21.6, w: 9, h: 6.6 };
-// rudder hinge in fin metres, bottom to top, and the chord trailing behind it
-const RUDDER = { x0: -18.25, y0: 0.3, x1: -20.35, y1: 6.3, chord: 1.3 };
-const wave = (c, base, amp, phase, x0 = -22, x1 = -12) => {
+// Wing planform: 27° leading-edge sweep, unswept inner trailing edge to the kink, 5° dihedral.
+const WING = { y: 2.75, dih: Math.tan(5 * DEG), le0: 4.8, sweep: 0.51, kink: 6.3, te0: -2.5, tip: 17, teTip: -5.3 };
+const wingLE = (z) => WING.le0 - z * WING.sweep;
+const wingTE = (z) => (z <= WING.kink ? WING.te0 : lerp(WING.te0, WING.teTip, (z - WING.kink) / (WING.tip - WING.kink)));
+const wingY = (z) => WING.y + z * WING.dih;
+const wingT = (z) => (z <= WING.kink ? lerp(0.72, 0.42, z / WING.kink) : lerp(0.42, 0.17, (z - WING.kink) / (WING.tip - WING.kink)));
+/** A wing section at span z, optionally cut at chord fraction `cut` for a hinged surface. */
+const wingSec = (z, cut = null, wall = false) => {
+  const le = wingLE(z), c = le - wingTE(z);
+  return { le: [le, wingY(z), z], c, t: wingT(z), cut: cut == null ? null : le - cut * c, wall };
+};
+// Hinged surfaces along the span: [z0, z1, chord fraction kept by the wing]
+const FLAPS = [[2.2, 6.0, 0.72], [6.6, 12.2, 0.73]], AILERON = [12.5, 15.8, 0.76];
+// Horizontal stabiliser: 33° sweep, 6° dihedral, rooted inside the tail cone.
+const STAB = { y: CY + 0.3, dih: Math.tan(6 * DEG), le0: -13.6, sweep: 0.64, te0: -17.5, teSweep: 0.27, span: 6.2 };
+const stabSec = (z, cut = null, wall = false) => {
+  const le = STAB.le0 - z * STAB.sweep, c = le - (STAB.te0 - z * STAB.teSweep);
+  return { le: [le, STAB.y + z * STAB.dih, z], c, t: lerp(0.42, 0.14, z / STAB.span), cut: cut == null ? null : le - cut * c, wall };
+};
+// Fin, in fin metres: x along the body, y up from FIN_Y. A low dorsal fillet blends the leading edge into the spine.
+const FIN_Y = CY + 1.6;
+const FIN_LE = [[-0.7, -9.6], [0.15, -10.7], [0.4, -11.3], [0.7, -12.3], [1.1, -13.1], [6.6, -17.72]];
+const finLE = (y) => {
+  for (let i = 1; i < FIN_LE.length; i++) if (y <= FIN_LE[i][0]) return lerp(FIN_LE[i - 1][1], FIN_LE[i][1], (y - FIN_LE[i - 1][0]) / (FIN_LE[i][0] - FIN_LE[i - 1][0]));
+  return FIN_LE.at(-1)[1];
+};
+const finTE = (y) => -19.7 - (y + 0.7) * 0.16;
+// The fin texture is drawn in fin metres over this rectangle.
+const FIN = { x0: -22, x1: -9, y0: -1, y1: 6.8 };
+// rudder hinge in fin metres, bottom to top
+const RUDDER = { x0: -18.05, y0: 0.15, x1: -19.85, y1: 6.4 };
+const rudderHinge = (y) => lerp(RUDDER.x0, RUDDER.x1, (y - RUDDER.y0) / (RUDDER.y1 - RUDDER.y0));
+const finSec = (y, cut = false, wall = false) => {
+  const le = finLE(y);
+  return { le: [le, FIN_Y + y, 0], c: le - finTE(y), t: lerp(0.55, 0.2, (y + 0.7) / 7.3), n: [0, 0, 1], cut: cut ? rudderHinge(y) : null, wall };
+};
+const finUV = (p) => [(p[0] - FIN.x0) / (FIN.x1 - FIN.x0), (p[1] - FIN_Y - FIN.y0) / (FIN.y1 - FIN.y0)];
+const wave = (c, base, amp, phase, x0 = -22, x1 = -9) => {
   for (let x = x0; x <= x1 + 0.01; x += 0.25) c.lineTo(x, base + Math.sin(x * 1.4 + phase) * amp);
 };
 
-/** Paints a livery's tail pattern over the whole fin rectangle; the fin shape crops it. */
+/** Paints a livery's tail pattern over the whole fin rectangle; the fin and rudder shapes crop it. */
 function paintFin(c, w, h, lv) {
   const k = lv.colors;
-  c.setTransform(w / FIN.w, 0, 0, -h / FIN.h, (-FIN.x0 * w) / FIN.w, h);
+  c.setTransform(w / (FIN.x1 - FIN.x0), 0, 0, -h / (FIN.y1 - FIN.y0), (-FIN.x0 * w) / (FIN.x1 - FIN.x0), (FIN.y1 * h) / (FIN.y1 - FIN.y0));
   c.fillStyle = k.tail;
-  c.fillRect(-22, -1, 10, 9);
+  c.fillRect(-23, -2, 15, 10);
   c.lineCap = "round";
   if (lv.tail === "swirl") {
     // a red spiral inside a blue ring
-    const cx = -17.8, cy = 2.9, r = 1.15;
+    const cx = -17.3, cy = 3.1, r = 1.2;
     c.strokeStyle = k.accent2;
     c.lineWidth = 0.2;
     c.beginPath();
@@ -95,51 +258,51 @@ function paintFin(c, w, h, lv) {
     const bands = [k.accent, k.accent2, k.accent3, k.accent4, k.accent5];
     bands.forEach((col, i) => {
       c.fillStyle = col;
-      c.fillRect(-22, 6.6 - (i + 1) * 0.86, 10, 0.62);
+      c.fillRect(-23, 6.6 - (i + 1) * 0.86, 15, 0.62);
     });
   } else if (lv.tail === "sweep") {
-    const g = c.createLinearGradient(-19, 0.4, -15, 6.2);
+    const g = c.createLinearGradient(-18, 0.4, -15, 6.2);
     g.addColorStop(0, k.tail);
     g.addColorStop(0.55, k.accent);
     g.addColorStop(1, k.tail);
     c.fillStyle = g;
-    c.fillRect(-22, -1, 10, 9);
+    c.fillRect(-23, -2, 15, 10);
     c.strokeStyle = k.accent2;
     c.lineWidth = 0.14;
     c.beginPath();
-    c.moveTo(-14.4, 0.2);
-    c.quadraticCurveTo(-17.6, 2.4, -20.6, 6.4);
+    c.moveTo(-12.2, 0.3);
+    c.quadraticCurveTo(-16.6, 2.4, -19.9, 6.5);
     c.stroke();
   } else if (lv.tail === "slant") {
     c.fillStyle = k.accent;
     c.beginPath();
-    c.moveTo(-12, -1);
+    c.moveTo(-9, -1);
     c.lineTo(-22, -1);
     c.lineTo(-22, 2.8);
     c.closePath();
     c.fill();
     c.fillStyle = k.accent2;
     c.beginPath();
-    c.arc(-17.6, 3.6, 0.5, 0, Math.PI * 2);
+    c.arc(-17.2, 3.7, 0.5, 0, Math.PI * 2);
     c.fill();
   } else if (lv.tail === "wing") {
     // two abstract wing petals rising from the fin root
-    for (const [col, tip, bend] of [[k.accent, [-20.2, 6.0], 1.6], [k.accent2, [-18.6, 6.4], 0.9]]) {
+    for (const [col, tip, bend] of [[k.accent, [-20.1, 6.0], 1.6], [k.accent2, [-18.5, 6.4], 0.9]]) {
       c.fillStyle = col;
       c.beginPath();
-      c.moveTo(-16.4, 1.0);
-      c.bezierCurveTo(-16.4 - bend, 2.4, tip[0] + 0.8, tip[1] - 1.6, ...tip);
-      c.bezierCurveTo(tip[0] + 1.4, tip[1] - 0.8, -15.6 + bend * 0.2, 2.6, -16.4, 1.0);
+      c.moveTo(-15.6, 0.9);
+      c.bezierCurveTo(-15.6 - bend, 2.4, tip[0] + 0.8, tip[1] - 1.6, ...tip);
+      c.bezierCurveTo(tip[0] + 1.4, tip[1] - 0.8, -14.8 + bend * 0.2, 2.6, -15.6, 0.9);
       c.fill();
     }
   } else if (lv.tail === "band") {
     // a white stripe parallel to the leading edge
     c.fillStyle = k.accent;
     c.beginPath();
-    c.moveTo(-14.0, -0.5);
-    c.lineTo(-14.75, -0.5);
-    c.lineTo(-21.75, 7.1);
-    c.lineTo(-21.0, 7.1);
+    c.moveTo(-12.24, -1);
+    c.lineTo(-13.04, -1);
+    c.lineTo(-20.0, 7.3);
+    c.lineTo(-19.2, 7.3);
     c.closePath();
     c.fill();
   } else if (lv.tail === "waves") {
@@ -148,7 +311,7 @@ function paintFin(c, w, h, lv) {
       c.beginPath();
       c.moveTo(-22, -1);
       wave(c, base, amp, ph);
-      c.lineTo(-12, -1);
+      c.lineTo(-9, -1);
       c.closePath();
       c.fill();
     }
@@ -159,16 +322,21 @@ function paintFin(c, w, h, lv) {
       wave(c, base, 0.2, ph);
       c.stroke();
     }
+  } else if (lv.tail === "sun") {
+    // the classic sun-and-S logo
+    c.fillStyle = k.accent;
+    c.beginPath();
+    c.arc(-17.1, 3.4, 1.15, 0, Math.PI * 2);
+    c.fill();
+    c.translate(-17.1, 3.4);
+    c.scale(1, -1);
+    c.fillStyle = k.tail;
+    c.font = "900 1.7px 'Space Grotesk', 'Arial Black', sans-serif";
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    c.fillText("S", 0, 0.08);
   }
   c.setTransform(1, 0, 0, 1, 0, 0);
-}
-/** The rudder box's side faces map u along the chord (0 = trailing edge) and v along the hinge: copy that strip of the fin. */
-function paintRudder(c, w, h, fin) {
-  const fw = fin.width, fh = fin.height;
-  for (let r = 0; r < h; r++) {
-    const v = 1 - (r + 0.5) / h, y = lerp(RUDDER.y0, RUDDER.y1, v), xt = lerp(RUDDER.x0, RUDDER.x1, v) - RUDDER.chord;
-    c.drawImage(fin, ((xt - FIN.x0) / FIN.w) * fw, (1 - y / FIN.h) * fh, (RUDDER.chord / FIN.w) * fw, 1, 0, r, w, 1);
-  }
 }
 function paintTitle(c, w, h, lv) {
   c.clearRect(0, 0, w, h);
@@ -183,19 +351,21 @@ function paintTitle(c, w, h, lv) {
     c.fillText("쑨에어", w / 2 + 330, h / 2 + 6);
   } else c.fillText(lv.title, w / 2, h / 2 + 4, w * 0.94);
 }
-function paintEmblem(c, w, lv) {
-  c.clearRect(0, 0, w, w);
-  if (lv.tail !== "sun") return;
-  c.fillStyle = lv.colors.accent;
-  c.beginPath();
-  c.arc(w / 2, w / 2, w * 0.4, 0, Math.PI * 2);
-  c.fill();
-  c.fillStyle = lv.colors.tail;
-  c.font = "900 150px 'Space Grotesk', 'Arial Black', sans-serif";
-  c.textAlign = "center";
-  c.textBaseline = "middle";
-  c.fillText("S", w / 2, w / 2 + 10);
-}
+/** A rounded window or door outline as an alpha texture. */
+const roundedTexture = (w, h, r, fill, stroke = null, lw = 0) =>
+  canvasTexture(w, h, (c) => {
+    c.beginPath();
+    c.roundRect(lw / 2 + 1, lw / 2 + 1, w - lw - 2, h - lw - 2, r);
+    if (fill) {
+      c.fillStyle = fill;
+      c.fill();
+    }
+    if (stroke) {
+      c.strokeStyle = stroke;
+      c.lineWidth = lw;
+      c.stroke();
+    }
+  });
 
 /** Recolours an airliner in place: livery materials and the painted textures are owned by each plane. */
 export function applyLivery(plane, lv) {
@@ -209,11 +379,8 @@ export function applyLivery(plane, lv) {
   }
   const t = u.textures;
   paintFin(t.fin.image.getContext("2d"), t.fin.image.width, t.fin.image.height, lv);
-  paintRudder(t.rudder.image.getContext("2d"), t.rudder.image.width, t.rudder.image.height, t.fin.image);
   paintTitle(t.title.image.getContext("2d"), t.title.image.width, t.title.image.height, lv);
-  paintEmblem(t.emblem.image.getContext("2d"), t.emblem.image.width, lv);
   for (const tex of Object.values(t)) tex.needsUpdate = true;
-  for (const m of u.emblem) m.visible = lv.tail === "sun";
   u.livery = lv.id;
 }
 
@@ -224,149 +391,206 @@ export function airlinerModel(F, livery = getLivery()) {
   // longer gear legs lift the airframe so the tail clears the runway up to the 13° tailstrike limit
   const lift = 0.8;
   body.position.y = lift;
-  const white = F.mat(0xf6f7f4, 0.45, 0.1), grey = F.mat(0xb9bfc2, 0.5, 0.35), dark = F.mat(0x22282d, 0.4, 0.2),
-    glass = F.mat(0x18232c, 0.15, 0.6);
-  // wings a shade darker than the fuselage, with metal leading edges and bright moving surfaces
-  const wingMat = F.mat(0xdfe5e9, 0.5, 0.15), edgeMat = F.mat(0x7d878e, 0.35, 0.55),
-    flapMat = F.mat(0xa9b4bb, 0.5, 0.3), spoilerMat = F.mat(0x8c979e, 0.5, 0.3), moveMat = F.mat(0xf2b632, 0.45, 0.05);
+  const grey = F.mat(0xb9bfc2, 0.5, 0.35), dark = F.mat(0x22282d, 0.4, 0.2), metalMat = F.mat(0x9aa3a8, 0.32, 0.75);
+  // wings a shade darker than the fuselage, with bright moving surfaces
+  const wingMat = F.mat(0xd7dde1, 0.5, 0.15), flapMat = F.mat(0xa9b4bb, 0.5, 0.3), spoilerMat = F.mat(0x8c979e, 0.5, 0.3),
+    moveMat = F.mat(0xf2b632, 0.45, 0.05);
   // livery paint is per plane (not from the shared factory cache) so it can be recoloured on its own
   const coat = (map = null) => new T.MeshStandardMaterial({ color: map ? 0xffffff : 0xf6f7f4, map, roughness: 0.48, metalness: 0.08 });
-  const textures = {
-    fin: canvasTexture(512, 376, () => {}),
-    rudder: canvasTexture(64, 256, () => {}),
-    title: canvasTexture(1024, 128, () => {}),
-    emblem: canvasTexture(256, 256, () => {}),
-  };
-  textures.fin.repeat.set(1 / FIN.w, 1 / FIN.h);
-  textures.fin.offset.set(-FIN.x0 / FIN.w, 0);
-  const paint = { body: coat(), belly: coat(), cheat: coat(), stripe: coat(), engine: coat(), band: coat(), winglet: coat(), fin: coat(textures.fin), rudder: coat(textures.rudder) };
+  const textures = { fin: canvasTexture(640, 364, () => {}), title: canvasTexture(1024, 128, () => {}) };
+  const paint = { body: coat(), belly: coat(), cheat: coat(), stripe: coat(), engine: coat(), band: coat(), winglet: coat(), fin: coat(textures.fin), rudder: coat(textures.fin) };
   for (const m of [flapMat, spoilerMat, moveMat, paint.rudder]) m.userData.edge = dark;
-  const cy = 4;
-  const fus = F.mesh(new T.CylinderGeometry(2, 2, 24, 28), paint.body, body, [0, cy, 0]);
-  fus.rotation.z = Math.PI / 2;
-  // lower fuselage: a slightly larger open shell from just under the side line round the bottom
-  const belly = F.mesh(new T.CylinderGeometry(2.006, 2.006, 24, 28, 1, true, Math.PI + 0.42, Math.PI - 0.84), paint.belly, body, [0, cy, 0]);
-  belly.rotation.z = Math.PI / 2;
-  belly.castShadow = false;
-  const nose = F.mesh(new T.SphereGeometry(2, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), paint.body, body, [12, cy, 0]);
-  nose.rotation.z = -Math.PI / 2;
-  nose.scale.set(1, 2.2, 1);
-  // tail cone sweeps upward so the aircraft can rotate before the tail meets the runway
-  const cone = new T.CylinderGeometry(0.42, 2, 9.5, 28, 6);
-  const cp = cone.attributes.position;
-  for (let i = 0; i < cp.count; i++) {
-    const k = (cp.getY(i) + 4.75) / 9.5;
-    cp.setX(i, cp.getX(i) + k * 0.6 + k * k * 1.3); // local +x becomes world up after the turn below
+  const decal = (map, extra = {}) => new T.MeshStandardMaterial({ map, transparent: true, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, ...extra });
+
+  // fuselage: painted upper skin and belly share one profile; stations bunch up at the nose and tail cone
+  const xs = [];
+  for (let i = 0; i <= 18; i++) xs.push(lerp(TAIL, CONE, i / 18));
+  for (let i = 1; i <= 6; i++) xs.push(lerp(CONE, NOSE - NOSE_LEN, i / 6));
+  for (let i = 1; i <= 26; i++) xs.push(NOSE - NOSE_LEN * pw(1 - i / 26, 1.7));
+  const seam = Math.PI / 2 + 0.42;
+  F.mesh(skinGeometry(xs, -seam, seam, 48), paint.body, body);
+  F.mesh(skinGeometry(xs, seam, Math.PI * 2 - seam, 16), paint.belly, body);
+  // APU exhaust closing the tail cone
+  const apu = F.mesh(new T.CircleGeometry(0.3, 18), dark, body, [TAIL - 0.01, fuselageSection(TAIL).yc, 0]);
+  apu.rotation.y = -Math.PI / 2;
+  apu.scale.y = 1.05;
+  // cockpit glazing: windshield, sliding side window and the small aft pane, both sides
+  const cockpit = [];
+  for (const s of [-1, 1]) {
+    const q = (aftTop, fwdTop, aftBot, fwdBot) => {
+      cockpit.push({ c: [aftTop, fwdTop, aftBot, fwdBot].map(([x, t]) => [x, s * t]), nx: 6, nt: 8 });
+    };
+    q([15.22, 0.07], [15.62, 0.07], [15.5, 1.14], [16.08, 1.08]); // windshield, wrapping round to the centre post
+    q([14.5, 0.93], [15.32, 0.95], [14.5, 1.2], [15.42, 1.18]); // sliding side window
+    q([13.8, 0.93], [14.38, 0.93], [13.8, 1.2], [14.38, 1.2]); // aft pane
   }
-  cone.computeVertexNormals();
-  cone.rotateZ(Math.PI / 2);
-  F.mesh(cone, paint.body, body, [-16.75, cy, 0]);
-  // cockpit glazing
-  for (const s of [-1, 1])
-    for (const [z, w] of [[0.45, 0.8], [1.25, 0.65]]) {
-      const pane = F.cube(body, [0.9, 0.5, w], [14.25 - z * 0.35, cy + 1.15, s * z], glass);
-      pane.rotation.z = -0.55;
-      pane.rotation.x = s * 0.35 * z;
+  F.mesh(decalGeometry(cockpit, 0.02), new T.MeshStandardMaterial({ color: 0x16222b, roughness: 0.12, metalness: 0.7, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), body).castShadow = false;
+  // cabin windows, doors with outlines, overwing exits
+  const windowMat = decal(roundedTexture(32, 44, 13, "#1d2a33"), { alphaTest: 0.4, transparent: false });
+  const doorMat = decal(roundedTexture(64, 128, 16, null, "#6d777d", 5), { alphaTest: 0.4, transparent: false });
+  const wins = [], doors = [];
+  for (const s of [-1, 1]) {
+    for (let k = 0; k <= 17; k++) {
+      const x = 9.0 - k * 0.95;
+      wins.push(rect(x - 0.15, x + 0.15, 1.15, 1.37, s));
     }
-  // cabin windows, doors and cheatline
-  const windows = [];
-  for (let x = -10.5; x < 10.6; x += 0.95) if (Math.abs(x - 7.6) > 0.8) for (const s of [-1, 1]) windows.push({ p: [x, cy + 0.55, s * 1.93], s: [0.32, 0.42, 0.08] });
-  F.batch(body, windows, glass);
-  const cheat = [], stripe = [], emblem = [];
-  for (const s of [-1, 1]) {
-    cheat.push(F.cube(body, [33, 0.32, 0.06], [-1.5, cy - 0.45, s * 1.96], paint.cheat));
-    stripe.push(F.cube(body, [30, 0.12, 0.06], [-1.5, cy - 0.78, s * 1.86], paint.stripe));
-    for (const x of [10.4, -11]) F.cube(body, [0.9, 1.75, 0.05], [x, cy + 0.15, s * 1.985], F.mat(0xdfe2e1, 0.5, 0.1));
+    for (const x of [10.05, -8.05]) doors.push(rect(x - 0.42, x + 0.42, 1.1, 2.08, s, 1, 4));
+    for (const x of [0.45, -0.5]) doors.push(rect(x - 0.3, x + 0.3, 1.04, 1.62, s, 1, 2));
   }
-  const titleMat = new T.MeshStandardMaterial({ map: textures.title, transparent: true, roughness: 0.5 });
+  F.mesh(decalGeometry(wins, 0.01), windowMat, body).castShadow = false;
+  F.mesh(decalGeometry(doors, 0.012), doorMat, body).castShadow = false;
+  // cheatline and pinstripe, following the skin from nose to tail cone
+  const cheat = [], stripe = [];
   for (const s of [-1, 1]) {
-    const m = F.mesh(new T.PlaneGeometry(9.5, 1.2), titleMat, body, [1.5, cy + 1.25, s * 1.62]);
-    m.rotation.x = s * -0.67;
-    if (s < 0) m.rotation.y = Math.PI;
+    cheat.push(F.mesh(decalGeometry([rect(-16.6, 15.7, 1.72, 1.88, s, 60, 1)], 0.008), paint.cheat, body));
+    stripe.push(F.mesh(decalGeometry([rect(-15.8, 14.8, 1.94, 2.0, s, 60, 1)], 0.008), paint.stripe, body));
+  }
+  for (const m of [...cheat, ...stripe]) {
     m.castShadow = false;
+    Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   }
-  // wings with sharklets, engines and pylons
-  const wing = { rootLE: 2.4, rootTE: -5.2, tipLE: -5.6, tipTE: -7.3, span: 17, dihedral: 5 }, dih = Math.tan(5 * DEG);
-  // hinge point on the wing at span fraction f, `fwd` metres ahead of the trailing edge, on the upper skin if `top`
-  const wingAt = (f, s, fwd, top = false) => [lerp(wing.rootTE, wing.tipTE, f) + fwd, 2.75 + f * 17 * dih + (top ? lerp(0.35, 0.12, f) / 2 + 0.03 : 0), s * f * 17];
+  const titleMat = decal(textures.title);
+  for (const s of [-1, 1]) F.mesh(decalGeometry([rect(-3.6, 6.2, 0.55, 1.12, s, 16, 4)], 0.014), titleMat, body).castShadow = false;
+
+  // wings with flaps, spoilers and ailerons in cut-outs, blended sharklets, engines and pylons
   const surf = { ailerons: [], flaps: [], spoilers: [], elevators: [], rudder: null };
+  const [[f0, f1, fc], [f2, f3, fc2]] = FLAPS, [a0, a1, ac] = AILERON;
+  const wingSecs = [wingSec(0), wingSec(f0), wingSec(f0, fc, true), wingSec(f1, fc), wingSec(f1, null, true), wingSec(WING.kink),
+    wingSec(f2), wingSec(f2, fc2, true), wingSec(f3, fc2), wingSec(f3, null, true), wingSec(a0), wingSec(a0, ac, true),
+    wingSec(a1, ac), wingSec(a1, null, true), wingSec(WING.tip)];
+  // sharklet: curves up from the tip, sweeps back and tapers
+  const tipY = wingY(WING.tip), sharklet = [wingSec(WING.tip)];
+  for (const [dz, dy, dx, c, t, tilt] of [[0.22, 0.05, -0.18, 1.32, 0.15, 30], [0.42, 0.3, -0.42, 1.18, 0.13, 62], [0.55, 0.75, -0.8, 1.02, 0.11, 80], [0.72, 2.45, -2.25, 0.5, 0.06, 84]])
+    sharklet.push({ le: [wingLE(WING.tip) + dx, tipY + dy, WING.tip + dz], c, t, n: [0, Math.cos(tilt * DEG), -Math.sin(tilt * DEG)] });
+  const stabSecs = [stabSec(0), stabSec(0.9), stabSec(0.9, 0.68, true), stabSec(5.9, 0.68), stabSec(5.9, null, true), stabSec(STAB.span)];
   for (const s of [-1, 1]) {
-    F.mesh(wingGeometry({ ...wing, side: s }), wingMat, body, [0, 2.75, 0]);
-    F.mesh(wingGeometry({ rootLE: 2.5, rootTE: 1.6, tipLE: -5.5, tipTE: -6.0, span: 17, thick: 0.4, tipThick: 0.16, dihedral: 5, side: s }), edgeMat, body, [0, 2.75, 0]).castShadow = false;
-    // hinges always run toward +z so a positive deflection is trailing-edge down on both wings
-    const span = (f0, f1, fwd, top) => (s > 0 ? [wingAt(f0, s, fwd, top), wingAt(f1, s, fwd, top)] : [wingAt(f1, s, fwd, top), wingAt(f0, s, fwd, top)]);
-    const thickAt = (f) => lerp(0.35, 0.12, f) + 0.06;
-    surf.ailerons.push({ side: s, pivot: controlSurface(F, body, ...span(0.62, 0.93, 1.1), 1.1, thickAt(0.78), moveMat) });
-    for (const [f0, f1] of [[0.13, 0.31], [0.38, 0.6]]) {
-      surf.flaps.push(controlSurface(F, body, ...span(f0, f1, 1.7), 1.7, thickAt((f0 + f1) / 2), flapMat));
-      surf.spoilers.push(controlSurface(F, body, ...span(f0 + 0.02, f1 - 0.02, 3.1, true), 1.35, 0.08, spoilerMat));
+    F.mesh(loftGeometry(wingSecs, { side: s, cap: false }), wingMat, body);
+    F.mesh(loftGeometry(sharklet, { side: s }), paint.winglet, body);
+    surf.ailerons.push({ side: s, pivot: controlSurface(F, body, wingSec(a0, ac), wingSec(a1, ac), moveMat, { side: s }) });
+    for (const [z0, z1, cut] of FLAPS) {
+      surf.flaps.push(controlSurface(F, body, wingSec(z0, cut), wingSec(z1, cut), flapMat, { side: s }));
+      // spoilers sit on the upper skin just ahead of each flap
+      const sp = (z) => ({ ...wingSec(z), cut: wingLE(z) - 0.5 * (wingLE(z) - wingTE(z)) });
+      surf.spoilers.push(controlSurface(F, body, sp(z0 + 0.2), sp(z1 - 0.2), spoilerMat, { side: s, top: true, chord: 0.2 * (wingLE((z0 + z1) / 2) - wingTE((z0 + z1) / 2)) }));
     }
-    const tipY = 2.75 + 17 * Math.tan(5 * DEG);
-    const winglet = F.mesh(wingGeometry({ rootLE: -5.5, rootTE: -7.3, tipLE: -7.1, tipTE: -7.9, span: 2.2, thick: 0.14, tipThick: 0.08, side: 1 }), paint.winglet, body, [0, tipY, s * 17]);
-    winglet.rotation.x = -Math.PI / 2 + s * 0.25;
-    F.mesh(wingGeometry({ rootLE: -13, rootTE: -16.6, tipLE: -17.4, tipTE: -18.8, span: 6.2, thick: 0.22, tipThick: 0.1, dihedral: 6, side: s }), wingMat, body, [0, cy + 0.6, 0]);
-    const stab = (f) => [lerp(-16.6, -18.8, f) + 0.9, cy + 0.6 + f * 6.2 * Math.tan(6 * DEG), s * f * 6.2];
-    surf.elevators.push(controlSurface(F, body, ...(s > 0 ? [stab(0.12), stab(0.95)] : [stab(0.95), stab(0.12)]), 0.9, 0.24, moveMat));
+    F.mesh(loftGeometry(stabSecs, { side: s }), wingMat, body);
+    surf.elevators.push(controlSurface(F, body, stabSec(0.9, 0.68), stabSec(5.9, 0.68), moveMat, { side: s }));
     // flap track fairings
-    for (const z of [3.6, 8.4, 12]) F.cube(body, [2.4, 0.4, 0.3], [lerp(-5.2, -7.3, z / 17) - 0.6, 2.55 + z * 0.087, s * z], grey, true);
-    const eng = new T.Group();
-    eng.position.set(0.9, 1.75, s * 5.7);
+    for (const z of [4.1, 8.2, 10.9]) {
+      const fair = F.mesh(F.ball, grey, body, [wingTE(z) + 0.15, wingY(z) - 0.26, s * z], [1.25, 0.2, 0.15]);
+      fair.rotation.z = 0.06;
+    }
+    // engine: nacelle lathed around x, hung on a pylon slightly ahead of the leading edge
+    const ez = 5.75, eng = new T.Group();
+    eng.position.set(2.2, 1.75, s * ez);
     body.add(eng);
-    const nac = F.mesh(new T.CylinderGeometry(0.88, 1.05, 4.4, 24, 1, true), paint.engine, eng);
-    nac.rotation.z = Math.PI / 2;
-    const lip = F.mesh(new T.TorusGeometry(1.0, 0.1, 8, 24), grey, eng, [2.2, 0, 0]);
-    lip.rotation.y = Math.PI / 2;
-    const fan = F.mesh(new T.CircleGeometry(0.97, 24), dark, eng, [1.9, 0, 0]);
+    const lathe = (pts, mat, segs = 32) => {
+      const g = new T.LatheGeometry(pts.map(([r, x]) => new T.Vector2(r, x)), segs);
+      g.rotateZ(-Math.PI / 2);
+      return F.mesh(g, mat, eng);
+    };
+    const cowl = [[0.8, -2.15], [0.9, -1.6], [0.99, -0.9], [1.06, -0.1], [1.09, 0.6], [1.08, 1.3], [1.04, 1.85], [0.99, 2.12], [0.93, 2.22]];
+    lathe(cowl, paint.engine);
+    lathe(cowl.slice(3, 6).map(([r, x]) => [r + 0.008, x]), paint.band);
+    lathe([[0.93, 2.22], [0.88, 2.2], [0.85, 2.1], [0.86, 1.6], [0.86, 1.45]], metalMat);
+    const fan = F.mesh(new T.CircleGeometry(0.87, 32), dark, eng, [1.5, 0, 0]);
     fan.rotation.y = Math.PI / 2;
-    const spinner = F.mesh(new T.ConeGeometry(0.3, 0.6, 14), F.mat(0x9fa6aa, 0.3, 0.7), eng, [2.1, 0, 0]);
-    spinner.rotation.z = -Math.PI / 2;
-    const ex = F.mesh(new T.ConeGeometry(0.62, 1.4, 16), grey, eng, [-2.7, 0, 0]);
-    ex.rotation.z = Math.PI / 2;
-    F.cube(eng, [3.2, 0.9, 0.3], [-0.6, 0.95, 0], white);
-    const band = F.mesh(new T.CylinderGeometry(1.07, 1.07, 0.5, 24, 1, true), paint.band, eng, [0.6, 0, 0]);
-    band.rotation.z = Math.PI / 2;
+    lathe([[0.001, 2.05], [0.12, 1.98], [0.26, 1.78], [0.3, 1.52]].reverse(), F.mat(0xd8dcde, 0.3, 0.5), 20);
+    lathe([[0.62, -2.75], [0.7, -2.4], [0.8, -2.15]], metalMat);
+    lathe([[0.001, -3.45], [0.3, -3.1], [0.5, -2.75], [0.55, -2.5]], F.mat(0x5d666c, 0.4, 0.6), 20);
+    const pylon = new T.Shape();
+    const wy = wingY(ez) - 1.75, le = wingLE(ez) - 2.2, te = wingTE(ez) - 2.2;
+    pylon.moveTo(1.5, 0.95);
+    pylon.lineTo(le + 0.2, wy - 0.02);
+    pylon.lineTo(te + 0.3, wy - 0.05);
+    pylon.quadraticCurveTo(te - 0.3, wy - 0.35, te + 0.6, wy - 0.6);
+    pylon.lineTo(-2.9, 0.74);
+    pylon.lineTo(-1.8, 0.8);
+    pylon.closePath();
+    const pg = new T.ExtrudeGeometry(pylon, { depth: 0.34, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.05, bevelSegments: 2 });
+    pg.translate(0, 0, -0.17);
+    F.mesh(pg, paint.body, eng);
   }
-  F.cube(body, [7, 0.9, 3.6], [-1.6, 2.15, 0], F.mat(0xe7e9e7, 0.5, 0.1), true); // wing-body fairing
-  // vertical fin painted with the livery's tail pattern; the classic livery adds the sun-and-S logo on top
-  const fin = F.mesh(finGeometry(), paint.fin, body, [0, cy + 1.6, 0]);
-  fin.castShadow = true;
-  surf.rudder = controlSurface(F, body, [RUDDER.x0, cy + 1.6 + RUDDER.y0, 0], [RUDDER.x1, cy + 1.6 + RUDDER.y1, 0], RUDDER.chord, 0.44, paint.rudder, true);
-  const logoMat = new T.MeshStandardMaterial({ map: textures.emblem, transparent: true, roughness: 0.5 });
-  for (const s of [-1, 1]) {
-    const m = F.mesh(new T.PlaneGeometry(2.9, 2.9), logoMat, body, [-18.6, cy + 4.6, s * 0.2]);
-    if (s < 0) m.rotation.y = Math.PI;
-    m.castShadow = false;
-    emblem.push(m);
-  }
-  // landing gear (retractable)
+  // belly fairing smoothing the wing root into the lower fuselage
+  F.mesh(F.ball, paint.belly, body, [0.6, 2.5, 0], [6.4, 0.66, 2.12]).castShadow = false;
+  // vertical fin painted with the livery's tail pattern; the rudder shares the texture
+  const finSecs = [finSec(-0.7), finSec(RUDDER.y0), finSec(RUDDER.y0, true, true), finSec(0.4, true), finSec(0.7, true), finSec(1.1, true), finSec(RUDDER.y1, true), finSec(RUDDER.y1, false, true), finSec(6.6)];
+  F.mesh(loftGeometry(finSecs, { uvAt: finUV }), paint.fin, body);
+  surf.rudder = controlSurface(F, body, finSec(RUDDER.y0, true), finSec(RUDDER.y1, true), paint.rudder, { vertical: true, uvAt: finUV });
+  // landing gear (retractable): twin-wheel mains under the wing roots, nose gear under the cockpit
   const gear = new T.Group();
   gear.position.y = -lift;
   body.add(gear);
   const tyre = new T.CylinderGeometry(0.58, 0.58, 0.42, 18);
   tyre.rotateX(Math.PI / 2);
+  const hub = new T.CylinderGeometry(0.3, 0.3, 0.44, 12);
+  hub.rotateX(Math.PI / 2);
   for (const s of [-1, 1]) {
-    F.rod(gear, [0, 0.6, s * 3.8], [0.1, 2.6 + lift, s * 3.6], 0.17, grey);
-    for (const o of [-0.28, 0.28]) F.mesh(tyre, dark, gear, [0, 0.58, s * 3.8 + o]);
+    const z = s * 3.8, top = wingY(3.8) + lift - 0.25;
+    F.rod(gear, [0, 0.58, z], [0.05, top, z], 0.17, grey);
+    F.rod(gear, [0, 1.9, z], [-0.05, top - 0.2, s * 2.1], 0.08, grey); // side brace
+    F.rod(gear, [0, 0.58, z - 0.3], [0, 0.58, z + 0.3], 0.1, grey);
+    F.cube(gear, [1.1, 1.9, 0.05], [0.05, top - 1.15, z + s * 0.24], paint.belly); // gear door
+    for (const o of [-0.28, 0.28]) {
+      F.mesh(tyre, dark, gear, [0, 0.58, z + o]);
+      F.mesh(hub, grey, gear, [0, 0.58, z + o]);
+    }
   }
-  const noseTyre = new T.CylinderGeometry(0.4, 0.4, 0.28, 16);
+  const noseX = 13, noseTyre = new T.CylinderGeometry(0.4, 0.4, 0.28, 16);
   noseTyre.rotateX(Math.PI / 2);
-  F.rod(gear, [11, 0.42, 0], [11.1, 2.4 + lift, 0], 0.13, grey);
-  for (const o of [-0.2, 0.2]) F.mesh(noseTyre, dark, gear, [11, 0.4, o]);
+  F.rod(gear, [noseX, 0.42, 0], [noseX + 0.1, fuselageSection(noseX).yc - fuselageSection(noseX).b + lift + 0.2, 0], 0.13, grey);
+  F.rod(gear, [noseX, 0.42, -0.22], [noseX, 0.42, 0.22], 0.08, grey);
+  for (const o of [-0.2, 0.2]) F.mesh(noseTyre, dark, gear, [noseX, 0.42, o]);
   // navigation lights
-  const lamp = (color, pos) => {
-    const m = new T.MeshBasicMaterial({ color });
-    return F.mesh(new T.SphereGeometry(0.22, 8, 6), m, body, pos);
-  };
-  const tip = 2.75 + 17 * Math.tan(5 * DEG);
-  lamp(0xff3030, [-6.0, tip, -17.1]);
-  lamp(0x30ff70, [-6.0, tip, 17.1]);
-  const strobe = lamp(0xffffff, [-21.2, cy + 0.6, 0]);
-  const beacon = lamp(0xff2020, [-2, cy + 2.05, 0]);
-  const landing = [lamp(0xfff6d8, [1.6, 2.6, 2.4]), lamp(0xfff6d8, [1.6, 2.6, -2.4])];
-  plane.userData = { body, gear, strobe, beacon, landing, surf, paint, textures, cheat, stripe, emblem, deflect: { aileron: 0, elevator: 0, rudder: 0, flaps: 0, spoilers: 0 } };
+  const lamp = (color, pos) => F.mesh(new T.SphereGeometry(0.2, 8, 6), new T.MeshBasicMaterial({ color }), body, pos);
+  lamp(0xff3030, [wingLE(WING.tip) - 0.4, tipY + 0.05, -(WING.tip + 0.15)]);
+  lamp(0x30ff70, [wingLE(WING.tip) - 0.4, tipY + 0.05, WING.tip + 0.15]);
+  const strobe = lamp(0xffffff, [TAIL - 0.1, fuselageSection(TAIL).yc + 0.4, 0]);
+  const beacon = lamp(0xff2020, [-2, CY + R + 0.05, 0]);
+  const landing = [lamp(0xfff6d8, [wingLE(2.6) - 0.25, wingY(2.6) - 0.05, 2.6]), lamp(0xfff6d8, [wingLE(2.6) - 0.25, wingY(2.6) - 0.05, -2.6])];
+  plane.userData = { body, gear, strobe, beacon, landing, surf, paint, textures, cheat, stripe, deflect: { aileron: 0, elevator: 0, rudder: 0, flaps: 0, spoilers: 0 } };
   plane.rotation.order = "YZX";
   applyLivery(plane, livery);
   return plane;
+}
+
+/** Renders the airliner in each livery from a 3/4 front view into PNG data URLs for the livery picker. */
+export function renderLiveryShots(ids, width = 480, height = 200) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const renderer = new T.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  try {
+    renderer.outputColorSpace = T.SRGBColorSpace;
+    renderer.toneMapping = T.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    renderer.setClearColor(0x000000, 0);
+    const scene = new T.Scene(), F = new Factory();
+    scene.add(new T.HemisphereLight(0xe2efff, 0x8a8f86, 2.1));
+    const sun = new T.DirectionalLight(0xfff0d6, 2.4);
+    sun.position.set(30, 50, 40);
+    scene.add(sun);
+    const plane = airlinerModel(F);
+    plane.userData.landing.forEach((m) => (m.visible = false));
+    scene.add(plane);
+    const camera = new T.PerspectiveCamera(17, width / height, 1, 1000);
+    camera.position.set(40, 13.5, 56.5);
+    camera.lookAt(-1.2, 3.6, 0);
+    const shots = {};
+    for (const id of ids) {
+      applyLivery(plane, getLivery(id));
+      renderer.render(scene, camera);
+      shots[id] = canvas.toDataURL("image/png");
+    }
+    plane.traverse((o) => {
+      o.geometry?.dispose();
+      if (o.material?.map) o.material.map.dispose();
+    });
+    return shots;
+  } finally {
+    renderer.dispose();
+    renderer.forceContextLoss();
+  }
 }
 
 const lightPoints = (positions, color, size = 4) => {

@@ -1759,7 +1759,8 @@ dialog a {
 .rw-lv-card:hover { background:#ffffff1c;color:#fff; }
 .rw-lv-btn:hover { color:#fff;background:#ffffff22; }
 .rw-lv-card[aria-pressed="true"] { border-color:var(--rw-amber);box-shadow:0 0 0 2px #f6d24a55; }
-.rw-lv-card svg { display:block;width:100%;height:auto;border-radius:8px;background:linear-gradient(#bfe0f4,#e4f1f8);margin-bottom:4px; }
+.rw-lv-shot { display:block;width:100%;height:auto;aspect-ratio:12/5;border-radius:8px;background:linear-gradient(#bfe0f4,#e4f1f8);margin-bottom:4px; }
+span.rw-lv-shot { background:linear-gradient(#bfe0f4,#e4f1f8) top/100% 62% no-repeat,linear-gradient(90deg,var(--b) 60%,var(--a) 60%); }
 .rw-lv-card b { font-size:13px;line-height:1.25; }
 .rw-lv-card small { font-size:10.5px;line-height:1.35;color:#b3c8d5; }
 .rw-result h2 { color:#16232c; }
