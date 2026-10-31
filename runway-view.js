@@ -836,12 +836,12 @@ export class RunwayView {
     if (to && a.ground) rudder = -g.wind.cross * 1.6; // hold the centreline against the crosswind
     else if (!to && (g.phase === "roll" || (onGround && g.phase === "result")) || (!to && a.h < 8)) rudder = -g.crab * 3; // kick out the crab
     else rudder = g.ctl.roll * 6;
-    const flaps = to ? (g.phase === "ready" || a.ground || g.altFt < 150 ? 15 : 0) : g.phase === "clear" || ldgReason === "goaround" ? 15 : 32;
+    const flaps = g.flapDeg ?? 15; // the pilot's flap lever
     const spoilers = onGround && (g.phase === "roll" || (g.phase === "result" && ldgReason !== "goaround" && (!to || g.takeoff?.ok === false))) ? 55 : 0;
     d.aileron = approach(d.aileron, g.ctl.roll * 22, 90, dt);
     d.elevator = approach(d.elevator, g.ctl.pitch * 22, 90, dt);
     d.rudder = approach(d.rudder, clamp(rudder, -25, 25), 40, dt);
-    d.flaps = this.cameraReady ? approach(d.flaps, flaps, 6, dt) : flaps;
+    d.flaps = this.cameraReady ? approach(d.flaps, flaps, 14, dt) : flaps;
     d.spoilers = approach(d.spoilers, spoilers, 120, dt);
     for (const s of S.ailerons) s.pivot.rotation.z = -s.side * d.aileron * DEG;
     for (const p of S.elevators) p.rotation.z = -d.elevator * DEG;

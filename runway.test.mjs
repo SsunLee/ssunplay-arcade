@@ -471,3 +471,40 @@ test("liveries carry no real airline names", () => {
   const banned = /korean|asiana|jeju|jin ?air|t'?way|air ?busan|air ?seoul|eastar|대한항공|아시아나|제주항공|진에어|티웨이|에어부산|에어서울|이스타/i;
   for (const l of LIVERIES) for (const text of [l.id, l.name, l.title, l.tagline]) assert.doesNotMatch(text, banned);
 });
+
+import { FLAPS, FLAPS_TO, FLAPS_LDG, stallKt } from "./runway-engine.js";
+test("flaps: more flap = lower stall speed and more drag; lever moves one notch at a time", () => {
+  for (let i = 1; i < FLAPS.length; i++) {
+    assert.ok(stallKt(i) < stallKt(i - 1));
+    assert.ok(FLAPS[i].drag > FLAPS[i - 1].drag && FLAPS[i].deg > FLAPS[i - 1].deg);
+  }
+  const g = new RunwayGame(3);
+  assert.equal(g.flaps, FLAPS_TO);
+  assert.ok(g.setFlaps(-1));
+  assert.equal(g.flaps, 0);
+  assert.equal(g.setFlaps(-1), false);
+  assert.equal(new RunwayGame(3, { stage: "landing" }).flaps, FLAPS_LDG);
+});
+test("new pilot: throttle lever to the top, pull at VR, then land with the throttle untouched", () => {
+  for (const seed of [1, 7, 42, 99]) {
+    const g = new RunwayGame(seed);
+    g.start();
+    g.setThrottle(1);
+    step(g, (x) => x.setInput(x.ias >= V_SPEEDS.vr && x.ac.pitch < 14 ? 0.7 : 0, 0, 0), 90);
+    assert.equal(g.phase, "clear", `seed ${seed}: ${g.takeoff?.reason}`);
+    g.nextStage();
+    g.start();
+    step(g, (x) => x.setInput(x.altFt < 30 && x.fpm < -300 ? 0.45 : 0, 0, 0), 120);
+    assert.ok(g.landing && !["crash", "goaround"].includes(g.landing.grade), `seed ${seed}: ${g.landing?.reason} ${g.landing?.fpm}`);
+  }
+});
+test("manual throttle below 25 ft holds while the lever is held, then auto-idles", () => {
+  const g = new RunwayGame(5, { stage: "landing" });
+  g.start();
+  step(g, (x) => { if (x.altFt < 20) { x.input.held = true; x.setThrottle(0.5); } }, 0);
+  for (let i = 0; i < 120 * 200 && g.altFt > 15; i++) g.update(1 / 120);
+  g.input.held = true; g.setThrottle(0.5); g.update(0.2);
+  assert.ok(g.throttle > 0.49);
+  g.input.held = false; g.update(0.2);
+  assert.ok(g.throttle < 0.45);
+});

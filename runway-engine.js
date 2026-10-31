@@ -18,6 +18,16 @@ export const RETARD_FT = 25; // assist: below this height on landing the levers 
 // hold-to-accelerate button: drag radius and deadzone in px, thrust ramp while held and the ease back on release (per s)
 export const HOLD = { radius: 80, dead: 10, ramp: 0.8, back: 1 };
 export const HOLD_LABELS = { up: "기수↑", down: "기수↓", left: "◀ 기울기", right: "기울기 ▶" };
+/** Flap settings: wing angle in the 3D model, the lift reference speed (lower = more lift, lower stall speed) and extra drag. */
+export const FLAPS = [
+  { label: "UP", deg: 0, vref: 200, drag: 0 },
+  { label: "1", deg: 15, vref: 178, drag: 0.00002 },
+  { label: "2", deg: 25, vref: 158, drag: 0.00004 },
+  { label: "FULL", deg: 35, vref: 140, drag: 0.00007 },
+];
+export const FLAPS_TO = 1, FLAPS_LDG = 3;
+/** Stall speed (kt) for a flap setting: where full lift at the stall angle no longer holds 1 g. */
+export const stallKt = (i) => FLAPS[i].vref / Math.sqrt(0.45 + 0.1 * 15);
 export const PAPI_ANGLES = [2.5, 2.83, 3.17, 3.5]; // left to right as seen on final, nearest the runway last
 export const GRADES = {
   butter: "버터 랜딩!",
@@ -151,7 +161,7 @@ export const releaseThrottle = ({ grounded, prev, climb = false }) => (grounded 
 export const totalScore = (takeoff, landing) => Math.round((takeoff || 0) * 0.4 + (landing || 0) * 0.6);
 /** Load factor from the lift curve; flaps set the reference speed. */
 const liftFactor = (v, alpha, vref) => (v / (vref * KT)) ** 2 * (0.45 + 0.1 * alpha);
-const dragOf = (v, alpha) => 0.00025 * v * v + 0.06 * Math.max(0, alpha);
+const dragOf = (v, alpha, flap = 0) => (0.00025 + (FLAPS[flap]?.drag ?? 0)) * v * v + 0.06 * Math.max(0, alpha);
 
 export class RunwayGame {
   constructor(seed = (Math.random() * 1e9) | 0, { stage = "takeoff", assist = true } = {}) {
@@ -161,7 +171,7 @@ export class RunwayGame {
     this.windLDG = makeWind(this.rand, 6, 14);
     this.gustPhase = this.rand() * 10;
     this.assist = assist;
-    this.input = { pitch: 0, roll: 0, throttle: 0 };
+    this.input = { pitch: 0, roll: 0, throttle: 0, held: false }; // held: the throttle lever is in the pilot's hand
     this.boost = null; // hold-to-accelerate: { prev } while held
     this.thrustBack = null; // thrust the throttle eases back to after the hold is released
     // what the control surfaces are doing (-1..1), including the assist; drives the 3D ailerons and elevator
@@ -185,6 +195,7 @@ export class RunwayGame {
     this.phase = "ready";
     this.t = 0;
     this.throttle = 0;
+    this.flaps = FLAPS_TO;
     this.ac = { x: 1150, h: 0, z: 0, v: 0, vy: 0, pitch: 0, bank: 0, psi: 0, ground: true, gear: true };
     this.pitchRate = 0;
     this.track = { rotateKt: null, liftoffKt: null, pitchSum: 0, pitchT: 0, maxGroundPitch: 0, early: 0 };
@@ -196,10 +207,11 @@ export class RunwayGame {
     this.stage = "landing";
     this.phase = "ready";
     this.t = 0;
+    this.flaps = FLAPS_LDG;
     const w = this.windLDG, d = 2800, v = (VAPP + 5) * KT,
       alpha = ((VREF_LDG * KT / v) ** 2 - 0.45) / 0.1,
       gamma = -RWY.gs * DEG,
-      thrust = dragOf(v, alpha) + G * Math.sin(gamma);
+      thrust = dragOf(v, alpha, this.flaps) + G * Math.sin(gamma);
     this.throttle = clamp(thrust / MAX_THRUST, 0, 1);
     this.ac = {
       x: RWY.aim - d, h: d * Math.tan(gamma * -1), z: (this.rand() - 0.5) * 40,
@@ -241,7 +253,17 @@ export class RunwayGame {
     this.input.roll = clamp(roll, -1, 1);
     this.input.throttle = clamp(throttle, -1, 1);
   }
-  setThrottle(v) { this.throttle = clamp(v, 0, 1); }
+  setThrottle(v) { this.throttle = clamp(v, 0, 1); this.thrustBack = null; }
+  /** Flap lever: +1 = one notch down (more lift and drag), -1 = one notch up. Returns true when it moved. */
+  setFlaps(step) {
+    const n = clamp(this.flaps + step, 0, FLAPS.length - 1);
+    if (n === this.flaps) return false;
+    this.flaps = n;
+    this.emit("flaps", { index: n, label: FLAPS[n].label });
+    return true;
+  }
+  get flapDeg() { return FLAPS[this.flaps].deg; }
+  get vref() { return FLAPS[this.flaps].vref; }
   /** Hold-to-accelerate: while held the thrust ramps to full; on release it returns to idle (on the ground before
    * liftoff) or to the setting from before the hold (in the air). */
   holdThrust(on) {
@@ -332,12 +354,12 @@ export class RunwayGame {
     // shared airborne dynamics; returns the angle of attack
     const a = this.ac, w = this.wind,
       gamma = Math.atan2(a.vy, a.v), alpha = a.pitch - gamma / DEG;
-    let n = liftFactor(a.v, Math.min(alpha, 15), vref);
+    let n = liftFactor(a.v, Math.min(alpha, 15), this.vref ?? vref);
     if (alpha > 15) n *= Math.max(0.3, 1 - (alpha - 15) * 0.15);
     if (a.h < 6) n *= 1 + 0.01 * (1 - a.h / 6); // a hint of ground effect
     const gust = (Math.sin(this.clock * 1.3 + this.gustPhase) + Math.sin(this.clock * 3.1 + this.gustPhase * 2) * 0.5) * w.speed * 0.012;
     a.vy += (G * (n * Math.cos(a.bank * DEG) - 1) + gust) * dt;
-    a.v += (this.throttle * MAX_THRUST - dragOf(a.v, alpha) - G * Math.sin(gamma)) * dt;
+    a.v += (this.throttle * MAX_THRUST - dragOf(a.v, alpha, this.flaps) - G * Math.sin(gamma)) * dt;
     a.v = Math.max(20, a.v);
     a.h += a.vy * dt;
     a.x += (a.v * Math.cos(gamma) * Math.cos(a.psi) - w.head * KT) * dt;
@@ -353,8 +375,8 @@ export class RunwayGame {
       if (this.input.pitch <= 0) a.pitch -= 1.2 * dt;
       if (a.pitch <= 0) this.pitchRate = Math.max(0, this.pitchRate); // the nose wheel stops a push
       a.pitch = Math.max(0, a.pitch);
-      const n = liftFactor(a.v, a.pitch, VREF_TO);
-      a.v = Math.max(0, a.v + (this.throttle * MAX_THRUST - dragOf(a.v, a.pitch) - (a.v > 0.5 ? 0.15 : 0)) * dt);
+      const n = liftFactor(a.v, a.pitch, this.vref);
+      a.v = Math.max(0, a.v + (this.throttle * MAX_THRUST - dragOf(a.v, a.pitch, this.flaps) - (a.v > 0.5 ? 0.15 : 0)) * dt);
       a.x += a.v * dt;
       tr.maxGroundPitch = Math.max(tr.maxGroundPitch, a.pitch);
       if (kt >= 80) this.callout("80", "80 KNOTS");
@@ -414,9 +436,9 @@ export class RunwayGame {
     this.driveThrottle(this.input.throttle * 0.4, dt);
     // assist: a gentle auto-throttle toward VAPP above 50 ft, and a hint when the speed is off
     this.assistInfo.thr = ft0 > 50 && Math.abs(kt0 - VAPP) > 6 ? Math.sign(VAPP - kt0) : 0;
-    if (this.assist && !this.input.throttle && !this.boost && this.thrustBack == null && ft0 > 50) this.throttle = clamp(this.throttle + clamp((VAPP - kt0) * 0.01, -0.06, 0.06) * dt, 0, 1);
+    if (this.assist && !this.input.throttle && !this.input.held && !this.boost && this.thrustBack == null && ft0 > 50) this.throttle = clamp(this.throttle + clamp((VAPP - kt0) * 0.01, -0.06, 0.06) * dt, 0, 1);
     // assist: RETARD below 25 ft, so the levers reach idle in the flare without a keyboard
-    if (this.assist && !this.input.throttle && !this.boost && ft0 < RETARD_FT) {
+    if (this.assist && !this.input.throttle && !this.input.held && !this.boost && ft0 < RETARD_FT) {
       this.thrustBack = null;
       this.throttle = Math.max(0, this.throttle - HOLD.back * dt);
     }
