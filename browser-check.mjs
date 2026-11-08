@@ -28,10 +28,10 @@ try {
   p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(base + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
   await p.locator("#preview-beer[data-renderer]").waitFor();
-  assert.equal(await p.locator(".game-card").count(), 4);
+  assert.equal(await p.locator(".game-card").count(), 7);
   assert.equal(await p.locator('a[href="/game/curling/"]').count(), 0);
   await p.screenshot({ path: "dist/qa/home-v21.png", fullPage: true });
-  record("four-game-home");
+  record("seven-game-home");
   await p.locator('a[href="/game/drive/"]').click();
   await phase(p, "ready");
   assert.equal(

@@ -27,4 +27,9 @@ for (const id of ["drive", "beer", "pasta", "dalgona", "subway", "runway"]) {
   }
   await writeFile(root + "dist/game/" + id + "/index.html", html);
 }
+// Standalone document isolates the imported r128 renderer and fixed-position UI
+// from the arcade's current Three.js bundle. Assets stay outside /game rewrites.
+await cp(root + "coaster", root + "dist/coaster", { recursive: true });
+await mkdir(root + "dist/game/coaster", { recursive: true });
+await cp(root + "coaster/index.html", root + "dist/game/coaster/index.html");
 console.log("SSUNPLAY 3D built");

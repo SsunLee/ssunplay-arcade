@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>단풍섬 코스터 파크 | 쑨플레이</title>
+<meta name="description" content="구름 위 가을 섬에서 세 가지 3D 롤러코스터를 타 보세요. 탑승·추적·전경 시점으로 즐기는 단풍섬 코스터 파크.">
+<meta property="og:title" content="단풍섬 코스터 파크 | 쑨플레이">
+<meta property="og:description" content="구름 위 가을 섬, 세 가지 3D 롤러코스터를 타 보세요.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://ssunplay-arcade.vercel.app/game/coaster/">
+<meta property="og:image" content="https://ssunplay-arcade.vercel.app/coaster/preview.svg">
+<link rel="canonical" href="https://ssunplay-arcade.vercel.app/game/coaster/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/coaster/style.css">
+</head>
+<body>
+<noscript>이 게임에는 JavaScript가 필요합니다. 브라우저에서 JavaScript를 켜 주세요. <a href="/">게임 목록</a></noscript>
+<div id="stage"><canvas id="c" tabindex="0" aria-label="3D 놀이공원"></canvas></div>
+<canvas id="map2d" class="hidden" aria-label="2D 공원 지도"></canvas>
+
+<div id="brand" class="panel"><div class="logo">🍁</div><div><b class="jua">단풍섬 코스터 파크</b><span>Maple Isle Coasters</span></div></div>
+
+<div id="hud" class="panel">
+  <div class="hud-top"><span class="dot" id="hudDot"></span><span id="hudName">—</span></div>
+  <div class="hud-speed"><b id="hudSpeed">0</b><small>km/h</small></div>
+  <div class="bar"><i id="hudBar"></i></div>
+  <div class="hud-grid">
+    <div><small>높이</small><b id="hudH">0m</b></div>
+    <div><small>G-포스</small><b id="hudG">1.0</b></div>
+    <div><small>바퀴</small><b id="hudLap">0</b></div>
+    <div><small>최고 기록</small><b id="hudBest">—</b></div>
+  </div>
+</div>
+
+<div id="pausedTag" class="hidden">일시정지</div>
+
+<div id="dock" class="panel">
+  <div class="coasters" id="chips"></div>
+  <div class="ctrl">
+    <a class="arcade-home" href="/" aria-label="쑨플레이 게임 목록으로">← 목록</a>
+    <button class="ibtn primary" id="play" aria-label="시작 / 일시정지" title="시작 / 일시정지 (Space)"></button>
+    <div class="seg" id="cams" role="group" aria-label="카메라">
+      <button data-m="ride" title="1인칭 탑승 시점">탑승</button>
+      <button data-m="chase" title="열차 추적 시점">추적</button>
+      <button data-m="orbit" title="공원 전경">전경</button>
+    </div>
+    <label class="speed">속도<input id="spd" type="range" min="0.25" max="2" step="0.25" value="1" aria-label="시뮬레이션 속도"><b id="spdv">1.0×</b></label>
+    <button class="ibtn" id="reset" aria-label="리셋" title="리셋 (R)"><svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/></svg></button>
+    <button class="ibtn" id="helpBtn" aria-label="도움말" title="도움말 (H)">?</button>
+    <button class="ibtn" id="retry3d" aria-label="3D 다시 시도" title="3D 다시 시도">3D</button>
+  </div>
+</div>
+
+<div id="start" class="overlay">
+  <div class="card panel">
+    <div class="kicker">AUTUMN VOXEL THEME PARK</div>
+    <h1>단풍섬 코스터 파크</h1>
+    <p class="lede">구름 위에 떠 있는 가을 섬, 세 개의 롤러코스터가 쉬지 않고 달립니다. 하나를 골라 맨 앞자리에 타 보세요.</p>
+    <ul class="trio" id="trio"></ul>
+    <div class="keys">
+      <kbd>드래그 · 한 손가락</kbd><span>시점 돌리기 (탑승 중엔 둘러보기)</span>
+      <kbd>휠 · 핀치</kbd><span>확대 / 축소</span>
+      <kbd>1 2 3</kbd><span>코스터 선택</span>
+      <kbd>C</kbd><span>카메라 전환 (탑승 → 추적 → 전경)</span>
+      <kbd>Space</kbd><span>시작 / 일시정지</span>
+      <kbd>+ / −</kbd><span>속도 조절 · <b>R</b> 리셋 · <b>H</b> 도움말</span>
+    </div>
+    <button class="cta" id="go" disabled>섬을 만드는 중…</button>
+    <div class="slowhint" id="slowhint">계속 이 화면이면 이 앱·브라우저에서 스크립트 실행이 막혀 있을 수 있어요. Chrome·Safari·Edge에서 이 페이지를 열어 보세요.</div>
+    <div id="diag" class="diag hidden"></div>
+    <a class="arcade-home" href="/">← 쑨플레이 게임 목록</a>
+  </div>
+</div>
+
+<div id="help" class="overlay hidden">
+  <div class="card panel">
+    <h2>조작 방법</h2>
+    <div class="keys">
+      <kbd>코스터 버튼 / 1 2 3</kbd><span>탈 코스터 선택</span>
+      <kbd>탑승 · 추적 · 전경 / C</kbd><span>1인칭 · 뒤따라가기 · 공원 전체 보기</span>
+      <kbd>드래그 · 한 손가락</kbd><span>탑승: 고개 돌리기 / 추적·전경: 카메라 회전</span>
+      <kbd>휠 · 두 손가락 핀치</kbd><span>확대 / 축소 (전경에서 아래로 돌리면 섬 밑바닥도 보여요)</span>
+      <kbd>▶ / Space</kbd><span>시작 / 일시정지</span>
+      <kbd>속도 슬라이더 / + −</kbd><span>0.25× ~ 2× 시뮬레이션 속도</span>
+      <kbd>⟲ / R</kbd><span>모든 열차를 역으로, 카메라·속도 초기화</span>
+    </div>
+    <p class="lede" style="font-size:13.5px">HUD의 G-포스는 좌석에서 느끼는 수직 하중입니다. 1보다 작으면 몸이 붕 뜨는 에어타임, 0 아래면 거꾸로 매달린 상태예요.</p>
+    <button class="cta" id="closeHelp">계속 타기</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="err" hidden></div>
+
+<script src="/coaster/three-r128.min.js"></script>
+<script src="/coaster/game.js"></script>
+</body>
+</html>

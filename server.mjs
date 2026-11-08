@@ -8,7 +8,7 @@ http
       const p = decodeURIComponent(new URL(req.url, "http://local").pathname),
         f = resolve(
           root,
-          p === "/" ? "index.html" : /^\/game\/(drive|beer|pasta|dalgona|subway)\/?$/.test(p) ? "." + p.replace(/\/$/, "") + "/index.html" : "." + p,
+          p === "/" ? "index.html" : /^\/game\/(drive|beer|pasta|dalgona|subway|runway|coaster)\/?$/.test(p) ? "." + p.replace(/\/$/, "") + "/index.html" : "." + p,
         );
       if (!f.startsWith(root + sep)) throw Error();
       const b = await readFile(f);

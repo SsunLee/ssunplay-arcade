@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480" role="img" aria-labelledby="title">
+<title id="title">Maple Isle Coasters: three rollercoasters on an autumn island</title>
+<defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="#9dbce1"/><stop offset="1" stop-color="#fbd4a6"/></linearGradient><linearGradient id="rock" x2="0" y2="1"><stop stop-color="#8d6b58"/><stop offset="1" stop-color="#594d58"/></linearGradient></defs>
+<path fill="url(#sky)" d="M0 0h800v480H0z"/>
+<g fill="#fff" opacity=".6"><ellipse cx="90" cy="110" rx="110" ry="25"/><ellipse cx="710" cy="184" rx="125" ry="25"/><ellipse cx="190" cy="391" rx="125" ry="22"/><ellipse cx="680" cy="395" rx="150" ry="24"/></g>
+<path fill="url(#rock)" d="m90 290 75 92 90 24 115 45 132-36 99-13 110-109-310-60Z"/>
+<ellipse cx="400" cy="284" rx="310" ry="94" fill="#acac58"/>
+<ellipse cx="400" cy="284" rx="235" ry="55" fill="none" stroke="#e5c590" stroke-width="13"/>
+<g stroke="#b4a893" stroke-width="5"><path d="M176 210v85m57-150v161m63-139v149m82-101v112m75-62v64m69-118v105m67-147v130m43-92v74"/></g>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M155 287C186 285 188 132 237 128s36 142 95 145 80-71 129-40 71 65 131 38" stroke="#793e37" stroke-width="13"/><path d="M155 281C186 279 188 126 237 122s36 142 95 145 80-71 129-40 71 65 131 38" stroke="#e24b31" stroke-width="8"/><path d="M286 316c-96 6-149-40-77-55s175 52 245 40 111-48 92-93-87-25-59 12 93 85 163 54" stroke="#457e92" stroke-width="8"/><path d="M310 343c77-65 138-26 167-69s64-163 111-113 1 112-28 142 42 28 78-14" stroke="#d29c34" stroke-width="8"/></g>
+<g fill="#db7831"><path d="m133 277 19-49 20 49zM610 313l22-52 23 52zM339 240l18-44 19 44z"/></g>
+<g fill="#b44930"><path d="m202 343 22-56 22 56zM659 265l18-46 20 46zM365 357l21-48 21 48z"/></g>
+<g fill="#eab54c"><path d="m107 300 19-46 20 46zM551 352l21-51 22 51zM300 265l16-43 19 43z"/></g>
+<g fill="#733c32"><path d="M220 126h19v13h-19zm22 1h19v13h-19zm22 8h19v13h-19z"/></g>
+</svg>

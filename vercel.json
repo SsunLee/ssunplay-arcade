@@ -4,6 +4,10 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/game/coaster/:path*",
+      "destination": "/game/coaster/index.html"
+    },
+    {
       "source": "/game/subway/:path*",
       "destination": "/game/subway/index.html"
     },
